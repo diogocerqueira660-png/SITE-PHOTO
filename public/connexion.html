@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Espace client — Diogo Car Photography</title>
+  <meta name="description" content="Diogo Car Photography — photographie automobile.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo">DIOGO <span>CAR PHOTOGRAPHY</span></a>
+    <nav class="nav" id="nav">
+      <a href="index.html">Portfolio</a>
+      <a href="connexion.html" class="nav-cta">Espace client</a>
+    </nav>
+  </header>
+
+  <main class="page page-etroite">
+    <p class="kicker">Espace client</p>
+    <h1>Tes photos</h1>
+    <p class="intro-texte">Connecte-toi pour retrouver les photos de tes shootings et les télécharger en haute définition.
+      Utilise l'adresse email que tu as donnée à Diogo : tes shootings apparaîtront automatiquement.</p>
+
+    <div class="onglets" role="tablist">
+      <button class="onglet actif" id="ongletConnexion" role="tab" aria-selected="true">Se connecter</button>
+      <button class="onglet" id="ongletInscription" role="tab" aria-selected="false">Créer un compte</button>
+    </div>
+
+    <form class="form" id="formConnexion">
+      <label>Email<input type="email" name="email" id="cEmail" autocomplete="email" required></label>
+      <label>Mot de passe<input type="password" name="motDePasse" id="cMdp" autocomplete="current-password" required></label>
+      <button type="submit" class="btn btn-primary">Se connecter</button>
+      <p class="form-erreur" id="erreurConnexion"></p>
+      <p class="form-aide">Mot de passe oublié ? Demande à Diogo de t'en générer un nouveau.</p>
+    </form>
+
+    <form class="form" id="formInscription" hidden>
+      <label>Nom<input type="text" name="nom" id="iNom" autocomplete="name" required></label>
+      <label>Email<input type="email" name="email" id="iEmail" autocomplete="email" required></label>
+      <label>Mot de passe <small>(8 caractères minimum)</small><input type="password" name="motDePasse" id="iMdp" autocomplete="new-password" minlength="8" required></label>
+      <button type="submit" class="btn btn-primary">Créer mon compte</button>
+      <p class="form-erreur" id="erreurInscription"></p>
+    </form>
+  </main>
+
+  <footer class="footer">
+    <p>© <span class="annee"></span> Diogo Car Photography — Toutes les photos sont protégées par le droit d'auteur.</p>
+  </footer>
+
+  <script src="js/commun.js"></script>
+  <script src="js/connexion.js"></script>
+</body>
+</html>

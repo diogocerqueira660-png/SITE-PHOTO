@@ -1,95 +1,85 @@
-# Site photo — Portfolio automobile
+# Diogo Car Photography
 
-Portfolio simple (HTML / CSS / JavaScript, sans serveur) : **un album par shooting**,
-et pour chaque shooting, un **téléchargement des photos en HD protégé par un mot de passe**.
+Portfolio de photographie automobile avec **espace client** et **espace admin**.
+
+- **Portfolio public** : les shootings que tu choisis d'afficher.
+- **Espace client** : le client crée un compte avec son email et retrouve directement *ses* shootings,
+  qu'il peut télécharger en haute définition (tout en .zip ou photo par photo).
+- **Espace admin** (toi) : créer un shooting, envoyer les photos depuis le navigateur (glisser-déposer),
+  choisir la couverture, donner l'accès aux clients par leur email, gérer les comptes clients.
+
+## Comment ça marche
+
+1. Dans l'admin, tu crées un shooting et tu indiques l'email du client (ex : `lucas@gmail.com`).
+2. Tu glisses les photos : le site garde l'original et crée une version web et une miniature.
+3. Le client va sur **Espace client → Créer un compte** avec ce même email : son shooting apparaît
+   automatiquement dans « Mes photos ». Il peut tout télécharger.
+4. Si tu coches **« Afficher dans le portfolio public »**, le shooting apparaît aussi sur l'accueil
+   pour tout le monde (visible, mais pas téléchargeable).
+
+Un shooting privé est invisible pour les autres : même un client connecté ne peut ni le voir,
+ni ouvrir ses photos s'il n'est pas dans la liste des emails.
+
+**Mot de passe oublié** (client) : dans *Admin → Clients*, bouton « Nouveau mot de passe » : le site
+en génère un provisoire que tu transmets au client ; il pourra le changer depuis son espace.
+
+## Lancer le site sur ton ordinateur
+
+Il faut **Node.js 22** ([nodejs.org](https://nodejs.org)).
+
+```bash
+npm install
+cp .env.example .env      # puis ouvre .env et mets ton email + un mot de passe admin
+npm start
+```
+
+Ouvre <http://localhost:3000>, clique sur **Espace client** et connecte-toi avec l'email et le
+mot de passe admin du fichier `.env` : tu arrives dans l'administration.
 
 ## Structure
 
 ```
-index.html                 → accueil : la liste des shootings
-album.html                 → la page d'un shooting (album.html#nom-du-shooting)
-css/style.css              → le design (couleurs en haut du fichier)
-js/                        → le fonctionnement des pages
-albums/                    → TES SHOOTINGS (créés par le script, un dossier par shooting)
-  albums.js                → la liste des shootings lue par le site (générée automatiquement)
-  <shooting>/album.json    → titre, date, lieu, description, liste des photos
-  <shooting>/web/          → photos redimensionnées pour l'affichage (2000 px)
-  <shooting>/mini/         → miniatures (800 px)
-  <shooting>/hd/           → originaux CHIFFRÉS pour le téléchargement
-outils/ajouter_shooting.py → le script pour ajouter un shooting
+server/            → le serveur (comptes, sessions, albums, envoi des photos, zip)
+  index.js         → toutes les adresses du site et de l'API
+  db.js            → la base de données (SQLite)
+  auth.js          → connexion, sessions, protections
+  photos.js        → redimensionnement et stockage des photos
+public/            → les pages du site
+  index.html       → portfolio public
+  album.html       → page d'un shooting
+  connexion.html   → connexion / création de compte
+  espace.html      → « Mes photos » du client
+  admin.html       → administration
+  css/style.css    → le design (couleurs en haut du fichier)
+data/              → créé automatiquement : base de données + photos (NE PAS PERDRE)
 ```
 
-## Préparer ton ordinateur (une seule fois)
+## Mettre en ligne
 
-Il faut **Python 3** ([python.org](https://www.python.org/downloads/)), puis dans un terminal :
+Le site a besoin d'un **serveur Node.js avec un disque permanent** (pour les photos) :
+GitHub Pages ne suffit plus.
 
-```bash
-pip install pillow cryptography
-```
+**Option simple — [Railway](https://railway.app)** (environ 5 $/mois) :
+1. *New Project → Deploy from GitHub repo* → choisis ce dépôt (le `Dockerfile` est utilisé automatiquement).
+2. Dans le service : *Variables* → ajoute `ADMIN_EMAIL` et `ADMIN_PASSWORD`.
+3. *Settings → Volumes* → ajoute un volume monté sur `/data` (c'est là que vont les photos).
+4. *Settings → Networking → Generate Domain* (ou branche ton propre nom de domaine).
 
-## Ajouter un shooting
+**Autres options** : Render (avec un *Persistent Disk* monté sur `/data`), Fly.io (avec un volume),
+ou un petit serveur VPS (Hetzner, OVH… ~5 €/mois, plus de place pour les photos) avec `docker run`.
 
-1. Mets les photos du shooting dans un dossier sur ton ordinateur (JPG exportés depuis Lightroom, par exemple).
-2. Dans un terminal, placé dans le dossier du site :
+Prévois assez d'espace disque : les originaux sont gardés tels quels.
 
-```bash
-python3 outils/ajouter_shooting.py "/chemin/vers/le/dossier" --titre "Porsche 911 GT3" --date 2026-08-14 --lieu "Circuit Paul Ricard"
-```
+## Sauvegardes
 
-3. Le script te demande le **mot de passe** de ce shooting (celui que tu donneras au client / au propriétaire de la voiture).
-4. C'est tout : le shooting apparaît sur l'accueil. Les shootings sont triés du plus récent au plus ancien.
+Tout (comptes, shootings, photos) est dans le dossier `data/` (ou le volume `/data`).
+Sauvegarde-le régulièrement : si le disque est perdu, les photos le sont aussi.
 
-Options utiles :
+## Sécurité
 
-| Option | Effet |
-|---|---|
-| `--description "..."` | petit texte affiché sur la page du shooting |
-| `--couverture 3` | la 3ᵉ photo sert d'image de couverture (défaut : la 1ʳᵉ) |
-| `--mot-de-passe xxx` | donne le mot de passe directement au lieu de le taper |
-| `--sans-telechargement` | shooting visible mais pas téléchargeable |
-| `--remplacer` | refait un shooting qui existe déjà (ex : tu as ajouté des photos) |
-| `--nom porsche-gt3` | choisit le nom du dossier / de l'adresse de la page |
-
-**Modifier** un titre, une date… : édite `albums/<shooting>/album.json`, puis lance
-`python3 outils/ajouter_shooting.py --reconstruire`.
-**Supprimer** un shooting : supprime son dossier dans `albums/`, puis lance la même commande.
-**Changer le mot de passe** : refais le shooting avec `--remplacer`.
-
-Les deux shootings « Exemple » (mots de passe : `porsche` et `gtr`) sont là pour tester : supprime les dossiers
-`albums/exemple-porsche` et `albums/exemple-gtr` puis lance `--reconstruire` quand tu as ajouté les tiens.
-
-## Comment marche le mot de passe
-
-- Les photos affichées sur le site sont publiques (versions web 2000 px).
-- Les **originaux** sont **chiffrés** (AES-256) avec le mot de passe du shooting. Le mot de passe n'est
-  écrit nulle part : sans lui, les fichiers du dossier `hd/` sont illisibles, même si quelqu'un les récupère
-  (y compris sur GitHub).
-- Le visiteur tape le mot de passe → son navigateur déchiffre les photos → il télécharge tout en `.zip`,
-  ou photo par photo depuis la visionneuse (bouton ⬇).
-- ⚠ Si tu oublies un mot de passe, il est impossible de le retrouver : il faudra refaire le shooting.
-  Note-les quelque part.
-
-## Voir le site sur ton ordinateur
-
-Le téléchargement ne marche pas en ouvrant simplement `index.html` (sécurité du navigateur).
-Lance un mini-serveur dans le dossier du site :
-
-```bash
-python3 -m http.server
-```
-
-puis ouvre <http://localhost:8000>.
-
-## À personnaliser
-
-- **Nom / logo** : « Diogo Car Photography » dans `index.html`, `album.html` et `js/album.js`.
-- **Lien Instagram** : dans `index.html`.
-- **Couleur principale** : `--accent` en haut de `css/style.css`.
-
-## Mettre en ligne (gratuit)
-
-Avec **GitHub Pages** : dépôt GitHub → *Settings* → *Pages* → *Deploy from a branch* → choisis la branche et `/ (root)`.
-Le site sera disponible à `https://<ton-pseudo>.github.io/SITE-PHOTO/`.
-
-Limites de GitHub : 100 Mo max par fichier (donc par photo originale) et environ 1 Go pour tout le site.
-Au-delà, il faudra un autre hébergement (Netlify, Cloudflare Pages ou un hébergeur classique : le site fonctionne partout tel quel).
+- Mots de passe chiffrés (bcrypt), jamais stockés en clair.
+- Session par cookie sécurisé (`HttpOnly`, `SameSite`), valable 30 jours.
+- Chaque photo est vérifiée à chaque demande : impossible d'ouvrir l'adresse d'une photo privée
+  sans avoir accès au shooting.
+- Tentatives de connexion limitées (10 par 15 minutes).
+- En ligne, utilise toujours une adresse en **https** (Railway, Render et Fly le font automatiquement).

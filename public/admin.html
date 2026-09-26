@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin — Diogo Car Photography</title>
+  <meta name="description" content="Diogo Car Photography — photographie automobile.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo">DIOGO <span>CAR PHOTOGRAPHY</span></a>
+    <nav class="nav" id="nav">
+      <a href="index.html">Portfolio</a>
+      <a href="connexion.html" class="nav-cta">Espace client</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="intro intro-admin">
+      <div>
+        <p class="kicker">Administration</p>
+        <h1 id="adminTitre">Shootings</h1>
+      </div>
+      <div class="onglets" role="tablist">
+        <button class="onglet actif" id="ongletAlbums" role="tab">Shootings</button>
+        <button class="onglet" id="ongletClients" role="tab">Clients</button>
+      </div>
+    </section>
+
+    <!-- Liste des shootings -->
+    <section id="vueAlbums">
+      <button class="btn btn-primary" id="btnNouveau">+ Nouveau shooting</button>
+      <div class="table-wrap">
+        <table class="table" id="tableAlbums">
+          <thead><tr><th></th><th>Shooting</th><th>Date</th><th>Photos</th><th>Visibilité</th><th>Clients</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="vide" id="albumsVide" hidden>Aucun shooting. Crée le premier avec le bouton ci-dessus.</p>
+    </section>
+
+    <!-- Édition d'un shooting -->
+    <section id="vueAlbum" hidden>
+      <a href="admin.html" class="retour">← Tous les shootings</a>
+      <form class="form form-album" id="formAlbum">
+        <label class="large">Titre<input type="text" id="aTitre" required maxlength="150" placeholder="Porsche 911 GT3 — Circuit Paul Ricard"></label>
+        <label>Date<input type="date" id="aDate"></label>
+        <label>Lieu<input type="text" id="aLieu" maxlength="150"></label>
+        <label class="large">Description <small>(facultatif)</small><textarea id="aDesc" rows="2" maxlength="2000"></textarea></label>
+        <label class="large">Emails des clients qui ont accès <small>(un par ligne ou séparés par des virgules ; le client voit le shooting dès qu'il crée son compte avec cet email)</small>
+          <textarea id="aClients" rows="2" placeholder="client@exemple.com"></textarea></label>
+        <label class="case large"><input type="checkbox" id="aPublic"> Afficher aussi ce shooting dans le portfolio public (sans téléchargement)</label>
+        <div class="form-actions large">
+          <button type="submit" class="btn btn-primary" id="btnEnregistrer">Enregistrer</button>
+          <a class="btn btn-ghost" id="lienVoir" target="_blank" hidden>Voir la page</a>
+          <button type="button" class="btn btn-danger" id="btnSupprimerAlbum" hidden>Supprimer le shooting</button>
+          <span class="form-ok" id="albumOk"></span>
+        </div>
+        <p class="form-erreur large" id="erreurAlbum"></p>
+      </form>
+
+      <div id="zonePhotos" hidden>
+        <h2 class="sous-titre">Photos <span id="nbPhotos"></span></h2>
+        <label class="depot" id="depot">
+          <input type="file" id="fichiers" accept=".jpg,.jpeg,.png,.webp,.tif,.tiff" multiple>
+          <strong>Glisse tes photos ici</strong> ou clique pour les choisir<br>
+          <small>JPG, PNG, WebP ou TIFF — les originaux sont conservés pour le téléchargement</small>
+        </label>
+        <div class="envoi" id="envoi" hidden>
+          <div class="progress"><div class="progress-bar" id="envoiBarre"></div></div>
+          <p id="envoiTexte"></p>
+        </div>
+        <div class="admin-photos" id="adminPhotos"></div>
+      </div>
+    </section>
+
+    <!-- Clients -->
+    <section id="vueClients" hidden>
+      <div class="table-wrap">
+        <table class="table" id="tableClients">
+          <thead><tr><th>Nom</th><th>Email</th><th>Inscrit le</th><th>Shootings</th><th></th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <p class="vide" id="clientsVide" hidden>Aucun client inscrit pour l'instant.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>© <span class="annee"></span> Diogo Car Photography — Toutes les photos sont protégées par le droit d'auteur.</p>
+  </footer>
+
+  <div class="modal" id="modal" aria-hidden="true">
+    <div class="modal-box" role="dialog" aria-labelledby="modalTitre">
+      <h2 id="modalTitre"></h2>
+      <p class="modal-text" id="modalTexte"></p>
+      <div class="form-actions">
+        <button class="btn btn-danger" id="modalOk">Confirmer</button>
+        <button class="btn btn-ghost" id="modalAnnuler">Annuler</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/commun.js"></script>
+  <script src="js/admin.js"></script>
+</body>
+</html>

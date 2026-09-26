@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shooting — Diogo Car Photography</title>
+  <meta name="description" content="Diogo Car Photography — photographie automobile.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <header class="header">
+    <a href="index.html" class="logo">DIOGO <span>CAR PHOTOGRAPHY</span></a>
+    <nav class="nav" id="nav">
+      <a href="index.html">Portfolio</a>
+      <a href="connexion.html" class="nav-cta">Espace client</a>
+    </nav>
+  </header>
+
+  <main class="page">
+    <section class="album-head" id="albumHead" hidden>
+      <div>
+        <p class="kicker" id="albumMeta"></p>
+        <h1 id="albumTitre"></h1>
+        <p class="album-desc" id="albumDesc"></p>
+      </div>
+      <a class="btn btn-primary" id="btnZip" hidden>Tout télécharger (.zip)</a>
+    </section>
+    <div class="gallery" id="gallery"></div>
+    <div class="message" id="message" hidden></div>
+  </main>
+
+  <footer class="footer">
+    <p>© <span class="annee"></span> Diogo Car Photography — Toutes les photos sont protégées par le droit d'auteur.</p>
+  </footer>
+
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button class="lb-close" id="lbClose" aria-label="Fermer">&times;</button>
+    <a class="lb-dl" id="lbDl" aria-label="Télécharger cette photo" title="Télécharger cette photo en HD" hidden>⬇</a>
+    <button class="lb-prev" id="lbPrev" aria-label="Photo précédente">&#10094;</button>
+    <figure>
+      <img id="lbImg" src="" alt="">
+      <figcaption id="lbCaption"></figcaption>
+    </figure>
+    <button class="lb-next" id="lbNext" aria-label="Photo suivante">&#10095;</button>
+  </div>
+
+  <script src="js/commun.js"></script>
+  <script src="js/album.js"></script>
+</body>
+</html>

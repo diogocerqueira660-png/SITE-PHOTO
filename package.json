@@ -1,0 +1,22 @@
+{
+  "name": "diogo-car-photography",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portfolio et espace clients de Diogo Car Photography",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server/index.js",
+    "dev": "node --env-file-if-exists=.env --watch server/index.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "archiver": "^8.0.0",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.3",
+    "express": "^5.2.1",
+    "multer": "^2.4.0",
+    "sharp": "^0.35.4"
+  }
+}
