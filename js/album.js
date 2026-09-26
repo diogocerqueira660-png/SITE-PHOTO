@@ -1,5 +1,5 @@
 // Page d'un shooting : galerie, visionneuse et téléchargement protégé par mot de passe
-const slug = new URLSearchParams(location.search).get('a');
+const slug = decodeURIComponent(location.hash.slice(1)) || new URLSearchParams(location.search).get('a');
 const album = (typeof ALBUMS !== 'undefined' ? ALBUMS : []).find(a => a.slug === slug);
 const dossier = album ? `albums/${album.slug}` : '';
 

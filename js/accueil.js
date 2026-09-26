@@ -11,7 +11,7 @@ function formaterDate(iso) {
 albums.forEach((album, i) => {
   const carte = document.createElement('a');
   carte.className = 'album-card';
-  carte.href = `album.html?a=${encodeURIComponent(album.slug)}`;
+  carte.href = `album.html#${encodeURIComponent(album.slug)}`;
   carte.style.animationDelay = `${i * 70}ms`;
 
   const img = document.createElement('img');

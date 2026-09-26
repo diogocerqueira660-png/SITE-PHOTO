@@ -7,7 +7,7 @@ et pour chaque shooting, un **téléchargement des photos en HD protégé par un
 
 ```
 index.html                 → accueil : la liste des shootings
-album.html                 → la page d'un shooting (album.html?a=nom-du-shooting)
+album.html                 → la page d'un shooting (album.html#nom-du-shooting)
 css/style.css              → le design (couleurs en haut du fichier)
 js/                        → le fonctionnement des pages
 albums/                    → TES SHOOTINGS (créés par le script, un dossier par shooting)
