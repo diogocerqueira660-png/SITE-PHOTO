@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ton Nom — Photographe Automobile</title>
+  <meta name="description" content="Portfolio de photographie automobile : shootings, événements, rolling shots et reportages.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <!-- ===== EN-TÊTE / NAVIGATION ===== -->
+  <header class="header" id="header">
+    <a href="#accueil" class="logo">TON<span>NOM</span></a>
+    <button class="nav-toggle" id="navToggle" aria-label="Ouvrir le menu" aria-expanded="false">
+      <span></span><span></span><span></span>
+    </button>
+    <nav class="nav" id="nav">
+      <a href="#galerie">Galerie</a>
+      <a href="#apropos">À propos</a>
+      <a href="#services">Prestations</a>
+      <a href="#contact" class="nav-cta">Contact</a>
+    </nav>
+  </header>
+
+  <!-- ===== HERO ===== -->
+  <section class="hero" id="accueil">
+    <div class="hero-bg"></div>
+    <div class="hero-content">
+      <p class="hero-kicker">Photographe automobile</p>
+      <h1>Capturer la<br><span>vitesse</span> & l'émotion</h1>
+      <p class="hero-sub">Shootings privés, événements, rolling shots — chaque voiture a une histoire à raconter.</p>
+      <div class="hero-actions">
+        <a href="#galerie" class="btn btn-primary">Voir la galerie</a>
+        <a href="#contact" class="btn btn-ghost">Réserver un shooting</a>
+      </div>
+    </div>
+    <a href="#galerie" class="scroll-hint" aria-label="Défiler vers la galerie"></a>
+  </section>
+
+  <!-- ===== GALERIE ===== -->
+  <section class="section" id="galerie">
+    <div class="section-head">
+      <p class="kicker">Portfolio</p>
+      <h2>Galerie</h2>
+    </div>
+    <div class="filters" id="filters"></div>
+    <div class="gallery" id="gallery"></div>
+  </section>
+
+  <!-- ===== À PROPOS ===== -->
+  <section class="section about" id="apropos">
+    <div class="about-img">
+      <img src="images/portrait.svg" alt="Portrait du photographe">
+    </div>
+    <div class="about-text">
+      <p class="kicker">À propos</p>
+      <h2>Passionné de voitures, obsédé par la lumière</h2>
+      <p>Présente-toi ici : ton parcours, depuis quand tu photographies des voitures, ce qui te fait vibrer (sportives, youngtimers, JDM, supercars…).</p>
+      <p>Parle de ton style : lumière naturelle, light painting, ambiances nocturnes, rolling shots sur route ou sur circuit.</p>
+      <div class="stats">
+        <div><strong>150+</strong><span>Shootings</span></div>
+        <div><strong>40+</strong><span>Événements</span></div>
+        <div><strong>5 ans</strong><span>D'expérience</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== PRESTATIONS ===== -->
+  <section class="section" id="services">
+    <div class="section-head">
+      <p class="kicker">Prestations</p>
+      <h2>Ce que je propose</h2>
+    </div>
+    <div class="services">
+      <article class="service">
+        <span class="service-num">01</span>
+        <h3>Shooting privé</h3>
+        <p>Une séance dédiée à ta voiture, dans un lieu choisi ensemble, avec retouche complète des photos.</p>
+      </article>
+      <article class="service">
+        <span class="service-num">02</span>
+        <h3>Rolling shots</h3>
+        <p>Photos en mouvement depuis un véhicule suiveur pour capturer la vitesse et le dynamisme.</p>
+      </article>
+      <article class="service">
+        <span class="service-num">03</span>
+        <h3>Événements & meetings</h3>
+        <p>Couverture de rassemblements, track days, salons et concessions.</p>
+      </article>
+      <article class="service">
+        <span class="service-num">04</span>
+        <h3>Professionnels</h3>
+        <p>Photos pour garages, préparateurs et concessionnaires : annonces, réseaux sociaux, catalogues.</p>
+      </article>
+    </div>
+  </section>
+
+  <!-- ===== CONTACT ===== -->
+  <section class="section contact" id="contact">
+    <div class="section-head">
+      <p class="kicker">Contact</p>
+      <h2>Parlons de ton projet</h2>
+    </div>
+    <div class="contact-grid">
+      <form class="contact-form" id="contactForm">
+        <label>Nom<input type="text" name="nom" required></label>
+        <label>Email<input type="email" name="email" required></label>
+        <label>Voiture / projet<input type="text" name="projet" placeholder="Ex : Porsche 911 GT3, shooting de nuit"></label>
+        <label>Message<textarea name="message" rows="5" required></textarea></label>
+        <button type="submit" class="btn btn-primary">Envoyer</button>
+        <p class="form-note" id="formNote"></p>
+      </form>
+      <div class="contact-info">
+        <p><strong>Email</strong><br><a href="mailto:contact@exemple.com">contact@exemple.com</a></p>
+        <p><strong>Instagram</strong><br><a href="https://instagram.com/" target="_blank" rel="noopener">@ton_compte</a></p>
+        <p><strong>Zone</strong><br>Ta ville & alentours — déplacements possibles</p>
+      </div>
+    </div>
+  </section>
+
+  <footer class="footer">
+    <p>© <span id="year"></span> Ton Nom — Photographe automobile. Toutes les photos sont protégées par le droit d'auteur.</p>
+  </footer>
+
+  <!-- ===== LIGHTBOX ===== -->
+  <div class="lightbox" id="lightbox" aria-hidden="true">
+    <button class="lb-close" id="lbClose" aria-label="Fermer">&times;</button>
+    <button class="lb-prev" id="lbPrev" aria-label="Photo précédente">&#10094;</button>
+    <figure>
+      <img id="lbImg" src="" alt="">
+      <figcaption id="lbCaption"></figcaption>
+    </figure>
+    <button class="lb-next" id="lbNext" aria-label="Photo suivante">&#10095;</button>
+  </div>
+
+  <script src="js/photos.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
