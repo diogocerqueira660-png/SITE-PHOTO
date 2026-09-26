@@ -1,0 +1,45 @@
+{
+  "slug": "exemple-gtr",
+  "titre": "Nissan GT-R de nuit — Exemple",
+  "date": "2026-06-02",
+  "lieu": "Marseille",
+  "description": "",
+  "couverture": "001.jpg",
+  "photos": [
+    {
+      "fichier": "001.jpg",
+      "largeur": 1333,
+      "hauteur": 2000,
+      "original": "IMG_4000.jpg"
+    },
+    {
+      "fichier": "002.jpg",
+      "largeur": 1333,
+      "hauteur": 2000,
+      "original": "IMG_4001.jpg"
+    },
+    {
+      "fichier": "003.jpg",
+      "largeur": 2000,
+      "hauteur": 1333,
+      "original": "IMG_4002.jpg"
+    },
+    {
+      "fichier": "004.jpg",
+      "largeur": 2000,
+      "hauteur": 1333,
+      "original": "IMG_4003.jpg"
+    },
+    {
+      "fichier": "005.jpg",
+      "largeur": 1333,
+      "hauteur": 2000,
+      "original": "IMG_4004.jpg"
+    }
+  ],
+  "telechargement": {
+    "sel": "/PeDdUvsLlhlQeOED6m+tg==",
+    "iterations": 250000,
+    "verif": "n5tzRObGdahg1lRfDb7YbM8N6TJqxwOwgxVR2VVlnW5ux9lXiJBa"
+  }
+}
