@@ -43,7 +43,18 @@ peux continuer à tout ouvrir avec l'Explorateur, Lightroom ou Photoshop.
   Insta 4:5, carré, story) avec ta signature en filigrane, dans `05_WEB`.
 - **Avancement** de chaque shooting (% de photos terminées) dans la liste de gauche.
 
-## Installation (Windows)
+## Installation (Windows) — le plus simple
+
+1. Télécharge **GestionPhotosAuto.exe** :
+   <https://github.com/diogocerqueira660-png/SITE-PHOTO/releases/latest/download/GestionPhotosAuto.exe>
+2. Range-le où tu veux (par ex. sur le Bureau) et **double-clique** dessus.
+3. Si Windows affiche « Windows a protégé votre ordinateur » : **Informations complémentaires**
+   → **Exécuter quand même** (normal pour une appli perso non signée).
+4. Choisis le dossier où ranger tous tes shootings. C'est tout.
+
+Pas besoin d'installer Python. Le `.exe` est refabriqué automatiquement à chaque mise à jour de l'appli.
+
+## Installation (Windows) — avec Python (pour modifier l'appli)
 
 1. Installe **Python 3.10 ou plus récent** depuis [python.org](https://www.python.org/downloads/)
    (coche **« Add python.exe to PATH »** pendant l'installation).
