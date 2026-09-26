@@ -55,7 +55,7 @@ Options utiles :
 **Supprimer** un shooting : supprime son dossier dans `albums/`, puis lance la même commande.
 **Changer le mot de passe** : refais le shooting avec `--remplacer`.
 
-Les deux shootings « Exemple » (mot de passe : `demo`) sont là pour tester : supprime les dossiers
+Les deux shootings « Exemple » (mots de passe : `porsche` et `gtr`) sont là pour tester : supprime les dossiers
 `albums/exemple-porsche` et `albums/exemple-gtr` puis lance `--reconstruire` quand tu as ajouté les tiens.
 
 ## Comment marche le mot de passe
@@ -82,8 +82,7 @@ puis ouvre <http://localhost:8000>.
 
 ## À personnaliser
 
-- **Nom / logo** : cherche « Ton Nom » et « TON<span>NOM</span> » dans `index.html` et `album.html`
-  (et « Ton Nom » dans `js/album.js` pour le titre de l'onglet).
+- **Nom / logo** : « Diogo Car Photography » dans `index.html`, `album.html` et `js/album.js`.
 - **Lien Instagram** : dans `index.html`.
 - **Couleur principale** : `--accent` en haut de `css/style.css`.
 

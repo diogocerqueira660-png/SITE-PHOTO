@@ -48,9 +48,9 @@ const ALBUMS = [
       }
     ],
     "telechargement": {
-      "sel": "ygL1TPJW2NACQnjcFP6NGw==",
+      "sel": "/fN9HorcEj7TmseuZhQYqg==",
       "iterations": 250000,
-      "verif": "qriqQbbUyIdrqi7IFVoKSAnilr4Vlc+StqA4X4SU5oto69s+5hjZ"
+      "verif": "72olb4TbaDcC9QJ5uYdOMkBnhMmpfpESOcqIGnSKPM1WcX6AAl7R"
     }
   },
   {
@@ -93,9 +93,9 @@ const ALBUMS = [
       }
     ],
     "telechargement": {
-      "sel": "/PeDdUvsLlhlQeOED6m+tg==",
+      "sel": "TtMTcznaJVVs5iWJlg9GHw==",
       "iterations": 250000,
-      "verif": "n5tzRObGdahg1lRfDb7YbM8N6TJqxwOwgxVR2VVlnW5ux9lXiJBa"
+      "verif": "Vyo+710ghOL+ibfO/g588PCeeMYbOr/91tgCjv/klMAx4+GiuP/P"
     }
   }
 ];

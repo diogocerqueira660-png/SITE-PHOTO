@@ -18,7 +18,7 @@ function formaterDate(iso) {
 }
 
 function afficherAlbum() {
-  document.title = `${album.titre} — Ton Nom`;
+  document.title = `${album.titre} — Diogo Car Photography`;
   document.getElementById('albumTitre').textContent = album.titre;
   document.getElementById('albumMeta').textContent =
     [formaterDate(album.date), album.lieu].filter(Boolean).join(' · ');
