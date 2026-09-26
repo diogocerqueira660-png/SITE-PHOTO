@@ -14,7 +14,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
-from PIL import Image, ImageDraw, ImageEnhance, ImageOps, ImageTk
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageTk
 
 import apercus
 import noyau
@@ -23,21 +23,46 @@ from noyau import A_TRIER, AUCUN, PICK, REJET, REJETEE, TERMINEE, Shooting
 
 # --------------------------------------------------------------------------- style
 
-FOND = "#0f1115"
-BARRE = "#14171c"
-CARTE = "#1b1f26"
-CARTE_SURVOL = "#212631"
-CHAMP = "#252b35"
-BORD = "#2b313c"
-TEXTE = "#eef1f5"
-DOUX = "#8a93a3"
-PALE = "#5b6472"
-ACCENT = "#ff7a1a"
-ACCENT_SURVOL = "#ff9447"
+VERSION = "V.1"
+NOM_APPLI = "Gestion Photos Auto"
+
+FOND = "#0a0a0b"
+BARRE = "#0f0f11"
+CARTE = "#161618"
+CARTE_SURVOL = "#1e1e22"
+CHAMP = "#232327"
+BORD = "#2f2f35"
+TEXTE = "#f4f4f5"
+DOUX = "#9a9aa3"
+PALE = "#5e5e66"
+ACCENT = "#e10600"         # rouge course
+ACCENT_SURVOL = "#ff2a1f"
+SUR_ACCENT = "#ffffff"
 VERT = "#22c55e"
-ROUGE = "#ef4444"
-COULEUR_LOGICIEL = {"lightroom": "#38bdf8", "photoshop": "#818cf8", "aucun": "#c084fc"}
-COULEUR_VERSION = {"RAW": "#64748b", "TIF": "#818cf8", "JPG": VERT, "WEB": "#f472b6"}
+ROUGE = "#f87171"          # texte « rejeter »
+GRIS_REJET = "#71717a"
+COULEUR_LOGICIEL = {"lightroom": "#4ea8ff", "photoshop": "#a78bfa", "aucun": "#f59e0b"}
+COULEUR_VERSION = {"RAW": "#71717a", "TIF": "#a78bfa", "JPG": VERT, "WEB": "#fb7185"}
+ZOOM_SURVOL = 1.09         # agrandissement d'une vignette au survol
+
+
+def ressource(nom: str) -> Path:
+    """Fichier du dossier ressources (fonctionne aussi dans le .exe / .app)."""
+    base = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent))
+    return base / "ressources" / nom
+
+
+def poser_icone(fenetre):
+    """Logo de l'appli dans la barre de titre / des tâches."""
+    try:
+        if sys.platform.startswith("win"):
+            fenetre.iconbitmap(str(ressource("logo.ico")))
+        else:
+            img = ImageTk.PhotoImage(Image.open(ressource("logo_256.png")))
+            fenetre.iconphoto(True, img)
+            fenetre._icone = img
+    except Exception:
+        pass
 
 if sys.platform.startswith("win"):
     POLICE = "Segoe UI"
@@ -60,11 +85,11 @@ def melange(c1: str, c2: str, t: float) -> str:
 
 def bouton(parent, texte, commande=None, style="secondaire", **kw):
     styles = {
-        "principal": dict(fg_color=ACCENT, hover_color=ACCENT_SURVOL, text_color="#16100a",
-                          text_color_disabled="#8a4a18"),
+        "principal": dict(fg_color=ACCENT, hover_color=ACCENT_SURVOL, text_color=SUR_ACCENT,
+                          text_color_disabled="#f5a5a0"),
         "secondaire": dict(fg_color=CHAMP, hover_color=BORD, text_color=TEXTE),
         "discret": dict(fg_color="transparent", hover_color=CHAMP, text_color=DOUX),
-        "danger": dict(fg_color="transparent", hover_color=melange(CARTE, ROUGE, .25), text_color=ROUGE),
+        "danger": dict(fg_color="transparent", hover_color=melange(CARTE, ACCENT, .25), text_color=ROUGE),
     }
     options = dict(corner_radius=10, height=36, font=police(13, style == "principal"))
     options.update(styles[style])
@@ -90,6 +115,10 @@ class Application(ctk.CTk):
         self.selection: set[int] = set()
         self.courant: int | None = None
         self.survol: int | None = None
+        self.zoom: dict[int, float] = {}      # case -> agrandissement en cours (animation de survol)
+        self._cache_zoom: dict = {}
+        self._cache_ombre: dict = {}
+        self._anim = None
         self.filtre = "Toutes"
         self.images: dict[str, tuple] = {}   # chemin aperçu -> (PhotoImage, PhotoImage sombre)
         self.index_image: dict[str, list[int]] = {}
@@ -100,7 +129,8 @@ class Application(ctk.CTk):
         self.cartes: dict[str, CarteShooting] = {}
         self._toast_id = None
 
-        self.title("Gestion Photos Auto")
+        self.title(f"{NOM_APPLI} {VERSION}")
+        poser_icone(self)
         self.geometry("1480x900")
         self.minsize(1100, 680)
         self._construire()
@@ -132,13 +162,22 @@ class Application(ctk.CTk):
         cote.grid_columnconfigure(0, weight=1)
         logo = ctk.CTkFrame(cote, fg_color="transparent")
         logo.grid(row=0, column=0, sticky="ew", padx=20, pady=(22, 18))
-        ctk.CTkLabel(logo, text="◆", font=police(22, True), text_color=ACCENT).pack(side="left")
+        try:
+            im_logo = Image.open(ressource("logo_256.png"))
+            self._logo = ctk.CTkImage(light_image=im_logo, dark_image=im_logo, size=(44, 44))
+            ctk.CTkLabel(logo, text="", image=self._logo).pack(side="left")
+        except Exception:
+            ctk.CTkLabel(logo, text="◆", font=police(22, True), text_color=ACCENT).pack(side="left")
         titre = ctk.CTkFrame(logo, fg_color="transparent")
         titre.pack(side="left", padx=10)
         ctk.CTkLabel(titre, text="Gestion Photos", font=police(17, True), text_color=TEXTE,
                      height=20).pack(anchor="w")
-        ctk.CTkLabel(titre, text="Auto · RAW → JPG", font=police(11), text_color=DOUX,
-                     height=14).pack(anchor="w")
+        sous = ctk.CTkFrame(titre, fg_color="transparent")
+        sous.pack(anchor="w", pady=(2, 0))
+        ctk.CTkLabel(sous, text=f" {VERSION} ", font=police(10, True), text_color=SUR_ACCENT, fg_color=ACCENT,
+                     corner_radius=6, height=18).pack(side="left")
+        ctk.CTkLabel(sous, text="  Auto · RAW → JPG", font=police(11), text_color=DOUX,
+                     height=16).pack(side="left")
         bouton(cote, "＋  Nouveau shooting", self.nouveau_shooting, "principal",
                height=42).grid(row=1, column=0, sticky="ew", padx=16)
         bouton(cote, "⤓  Importer une carte SD", self.importer,
@@ -242,16 +281,23 @@ class Application(ctk.CTk):
         self.lbl_sel.pack(side="left", padx=(18, 14), pady=12)
         self.btn_envoyer = bouton(self.barre_sel, "", self.envoyer, "principal", height=40)
         self.btn_envoyer.pack(side="left")
-        self.btn_faite = bouton(self.barre_sel, "✓  Étape faite", self.marquer_faite, height=40)
+        self.btn_faite = bouton(self.barre_sel, "Étape faite", self.marquer_faite, height=40, width=100)
         self.btn_faite.pack(side="left", padx=(8, 0))
-        ctk.CTkFrame(self.barre_sel, width=1, height=26, fg_color=BORD).pack(side="left", padx=12)
-        bouton(self.barre_sel, "Garder", lambda: self.choisir(PICK), "discret", width=70,
-               height=40).pack(side="left")
-        bouton(self.barre_sel, "Rejeter", lambda: self.choisir(REJET), "danger", width=70,
-               height=40).pack(side="left")
+        ctk.CTkFrame(self.barre_sel, width=1, height=26, fg_color=BORD).pack(side="left", padx=10)
+        ctk.CTkLabel(self.barre_sel, text="Ouvrir", font=police(12), text_color=PALE).pack(side="left", padx=(0, 6))
+        for sigle, cle in (("Ps", "photoshop"), ("Lr", "lightroom")):
+            ctk.CTkButton(self.barre_sel, text=sigle, width=40, height=40, corner_radius=10,
+                          fg_color="#001e36", hover_color="#00304f", text_color="#31a8ff",
+                          font=police(15, True),
+                          command=lambda c=cle: self.ouvrir_avec_logiciel(c)).pack(side="left", padx=2)
+        ctk.CTkFrame(self.barre_sel, width=1, height=26, fg_color=BORD).pack(side="left", padx=10)
+        bouton(self.barre_sel, "✓", lambda: self.choisir(PICK), "discret", width=40, height=40,
+               text_color=VERT, font=police(16, True)).pack(side="left")
+        bouton(self.barre_sel, "✕", lambda: self.choisir(REJET), "danger", width=40, height=40,
+               font=police(15, True)).pack(side="left")
         bouton(self.barre_sel, "Tout", self.tout_selectionner, "discret", width=56,
                height=40).pack(side="left", padx=(6, 0))
-        bouton(self.barre_sel, "✕", self.deselectionner, "discret", width=40,
+        bouton(self.barre_sel, "Aucune", self.deselectionner, "discret", width=64,
                height=40).pack(side="left", padx=(0, 10))
 
         # -- panneau de détail
@@ -421,11 +467,11 @@ class Application(ctk.CTk):
             w.destroy()
         if not self.shooting:
             return
-        pastilles = [("Toutes", "Toutes", DOUX, len(self.shooting.photos)),
-                     (A_TRIER, "À trier", "#94a3b8", colonnes.get(A_TRIER, 0))]
+        pastilles = [("Toutes", "Toutes", ACCENT, len(self.shooting.photos)),
+                     (A_TRIER, "À trier", "#a1a1aa", colonnes.get(A_TRIER, 0))]
         pastilles += [(e.id, e.nom, COULEUR_LOGICIEL[e.logiciel], colonnes.get(e.id, 0)) for e in self.flux]
         pastilles += [(TERMINEE, "Terminées", VERT, colonnes.get(TERMINEE, 0)),
-                      (REJETEE, "Rejetées", ROUGE, colonnes.get(REJETEE, 0))]
+                      (REJETEE, "Rejetées", GRIS_REJET, colonnes.get(REJETEE, 0))]
         self._pastilles = []
         for k, (cle, nom, couleur, n) in enumerate(pastilles):
             groupe = ctk.CTkFrame(self.barre_flux, fg_color="transparent")
@@ -474,7 +520,7 @@ class Application(ctk.CTk):
         if etape:
             logiciel = noyau.LOGICIELS[etape.logiciel]
             if etape.logiciel == "aucun":
-                texte = f"En attente de « {etape.nom} ». Coche-les puis « ✓ Étape faite »."
+                texte = f"En attente de « {etape.nom} ». Coche-les puis « Étape faite »."
             else:
                 texte = (f"En attente de « {etape.nom} ». Coche-les puis « Envoyer vers {logiciel} » "
                          "pour les ouvrir toutes d'un coup.")
@@ -536,7 +582,7 @@ class Application(ctk.CTk):
                 gen, cle, normal, sombre = self.file.get_nowait()
                 if gen != self.generation:
                     continue
-                self.images[cle] = (ImageTk.PhotoImage(normal), ImageTk.PhotoImage(sombre))
+                self.images[cle] = (ImageTk.PhotoImage(normal), ImageTk.PhotoImage(sombre), normal, sombre)
                 for idx in self.index_image.get(cle, []):
                     self._dessiner_case(idx)
         except queue.Empty:
@@ -561,7 +607,7 @@ class Application(ctk.CTk):
 
     def _colonnes(self) -> int:
         l, _ = self._dims()
-        return max(1, (self.toile.winfo_width() - 10) // l)
+        return max(1, (self.toile.winfo_width() - 2 * self._marge()) // l)
 
     def _redessiner_si_largeur(self):
         if self.toile.winfo_width() != self._largeur:
@@ -583,6 +629,8 @@ class Application(ctk.CTk):
 
     def redessiner(self):
         self.toile.delete("all")
+        self.zoom.clear()
+        self.survol = None
         if not self.shooting:
             return
         if not self.photos:
@@ -598,10 +646,14 @@ class Application(ctk.CTk):
         lignes = (len(self.photos) + self._colonnes() - 1) // self._colonnes()
         self.toile.configure(scrollregion=(0, 0, self._colonnes() * l, lignes * h + 90 * self.echelle))
 
+    def _marge(self):
+        return int(10 * self.echelle)  # place pour l'agrandissement au survol
+
     def _pos(self, i):
         l, h = self._dims()
         c = self._colonnes()
-        return 6 + (i % c) * l, 6 + (i // c) * h
+        m = self._marge()
+        return m + (i % c) * l, m + (i // c) * h
 
     def _geo(self, i):
         """Positions utiles d'une case : cadre, image, rond de sélection."""
@@ -622,6 +674,13 @@ class Application(ctk.CTk):
         t.delete(tag)
         p = self.photos[i]
         x, y, w, hh, ix, iy, il, ih, cx, cy = self._geo(i)
+        z = self.zoom.get(i, 1.0)
+        prog = max(0.0, (z - 1) / (ZOOM_SURVOL - 1))
+        ez = e * z  # taille des textes (le reste est agrandi par la toile)
+        if prog > 0:
+            ombre = self._ombre(w, hh, z, prog)
+            decalage = (14 * e * prog + 7 * e * prog) / z
+            t.create_image(x + w / 2, y + hh / 2 + decalage, image=ombre, tags=tag)
         sel = i in self.selection
         fond = CARTE_SURVOL if (i == self.survol or sel) else CARTE
         _rect_arrondi(t, x, y, x + w, y + hh, int(14 * e), fill=fond,
@@ -629,32 +688,34 @@ class Application(ctk.CTk):
                       width=max(1, int(2 * e)) if sel or i == self.courant else 1, tags=tag)
         imgs = self.images.get(_cle_image(p))
         if imgs:
-            t.create_image(ix, iy, image=imgs[1] if p.choix == REJET else imgs[0], anchor="nw", tags=tag)
+            t.create_image(ix, iy, image=self._image_zoom(_cle_image(p), imgs, p.choix == REJET, z),
+                           anchor="nw", tags=tag)
         else:
             _rect_arrondi(t, ix, iy, ix + il, iy + ih, int(12 * e), fill=CHAMP, outline="", tags=tag)
         # rond de sélection
         r = int(11 * e)
         if sel:
             t.create_oval(cx - r, cy - r, cx + r, cy + r, fill=ACCENT, outline=ACCENT, tags=tag)
-            t.create_text(cx, cy, text="✓", fill="#16100a", font=(POLICE, -int(13 * e), "bold"), tags=tag)
+            t.create_text(cx, cy, text="✓", fill=SUR_ACCENT, font=(POLICE, -int(13 * ez), "bold"), tags=tag)
         else:
             t.create_oval(cx - r, cy - r, cx + r, cy + r, fill="", outline="#e5e7eb",
                           width=max(1, int(2 * e)), tags=tag)
         if p.choix == REJET:
-            t.create_text(ix + il // 2, iy + ih // 2, text="Rejetée", fill=ROUGE,
-                          font=(POLICE, -int(15 * e), "bold"), tags=tag)
+            t.create_text(ix + il // 2, iy + ih // 2, text="Rejetée", fill="#d4d4d8",
+                          font=(POLICE, -int(15 * ez), "bold"), tags=tag)
         # nom
         ty = iy + ih + int(18 * e)
         t.create_text(x + int(12 * e), ty, text=_raccourcir(p.nom, max(10, int(il / e) // 12)), fill=DOUX,
-                      anchor="w", font=(POLICE, -int(11 * e)), tags=tag)
+                      anchor="w", font=(POLICE, -int(11 * ez)), tags=tag)
         t.create_text(x + w - int(12 * e), ty, text="★" * p.note + "☆" * (5 - p.note),
-                      fill=ACCENT if p.note else PALE, anchor="e", font=(POLICE, -int(12 * e)), tags=tag)
+                      fill=ACCENT if p.note else PALE, anchor="e", font=(POLICE, -int(12 * ez)), tags=tag)
         # pastille d'état + étoiles
         col = p.colonne(self.flux)
         couleur = self._couleur_colonne(col)
         police_etat = (POLICE, -int(11 * e), "bold")
         texte = _raccourcir(p.etat(self.flux), max(12, int(il / e) // 8))
         mesure = t.create_text(-999, -999, text=texte, font=police_etat)
+        police_etat = (POLICE, -int(11 * ez), "bold")
         bx1, _, bx2, _ = t.bbox(mesure)
         t.delete(mesure)
         largeur = bx2 - bx1 + int(18 * e)
@@ -681,14 +742,69 @@ class Application(ctk.CTk):
             else:
                 c = BORD
             t.create_rectangle(sx, by, sx + seg, by + max(3, int(4 * e)), fill=c, outline="", tags=tag)
+        if prog > 0:
+            t.scale(tag, x + w / 2, y + hh / 2, z, z)
+            t.move(tag, 0, -int(7 * e * prog))
+            t.tag_raise(tag)
+        elif self.survol is not None and self.survol != i and self.zoom.get(self.survol, 1.0) > 1:
+            t.tag_raise(f"case{self.survol}")
+
+    def _image_zoom(self, cle, imgs, rejetee, z):
+        if z <= 1.0:
+            return imgs[1] if rejetee else imgs[0]
+        k = (cle, rejetee, round(z, 3))
+        if k not in self._cache_zoom:
+            if len(self._cache_zoom) > 300:
+                self._cache_zoom.clear()
+            pil = imgs[3] if rejetee else imgs[2]
+            taille = (round(pil.width * z), round(pil.height * z))
+            self._cache_zoom[k] = ImageTk.PhotoImage(pil.resize(taille, Image.BILINEAR))
+        return self._cache_zoom[k]
+
+    def _ombre(self, w, hh, z, prog):
+        """Ombre douce sous une vignette agrandie."""
+        k = (w, hh, round(z, 3))
+        if k not in self._cache_ombre:
+            flou = int(16 * self.echelle)
+            lw, lh = int(w * z), int(hh * z)
+            im = Image.new("RGBA", (lw + 4 * flou, lh + 4 * flou), (0, 0, 0, 0))
+            ImageDraw.Draw(im).rounded_rectangle([2 * flou, 2 * flou, 2 * flou + lw, 2 * flou + lh],
+                                                 int(16 * self.echelle), fill=(0, 0, 0, int(235 * prog)))
+            im = im.filter(ImageFilter.GaussianBlur(flou))
+            # léger reflet rouge sous la carte
+            teinte = Image.new("RGBA", im.size, (225, 6, 0, 0))
+            teinte.putalpha(im.getchannel("A").point(lambda a: int(a * 0.18)))
+            self._cache_ombre[k] = ImageTk.PhotoImage(Image.alpha_composite(im, teinte))
+        return self._cache_ombre[k]
+
+    def _animer(self):
+        """Fait avancer / reculer doucement les vignettes survolées."""
+        self._anim = None
+        pas = (ZOOM_SURVOL - 1) / 5
+        encore = False
+        for i in list(set(self.zoom) | ({self.survol} if self.survol is not None else set())):
+            cible = ZOOM_SURVOL if i == self.survol else 1.0
+            z = self.zoom.get(i, 1.0)
+            if abs(z - cible) < 1e-6:
+                continue
+            z = min(cible, z + pas) if cible > z else max(cible, z - pas)
+            if z <= 1.0 + 1e-6:
+                self.zoom.pop(i, None)
+            else:
+                self.zoom[i] = z
+            if i < len(self.photos):
+                self._dessiner_case(i)
+            encore = True
+        if encore:
+            self._anim = self.after(16, self._animer)
 
     def _couleur_colonne(self, col):
         if col == A_TRIER:
-            return "#94a3b8"
+            return "#a1a1aa"
         if col == TERMINEE:
             return VERT
         if col == REJETEE:
-            return ROUGE
+            return GRIS_REJET
         etape = next((e for e in self.flux if e.id == col), None)
         return COULEUR_LOGICIEL[etape.logiciel] if etape else DOUX
 
@@ -696,7 +812,8 @@ class Application(ctk.CTk):
         x, y = self.toile.canvasx(event.x), self.toile.canvasy(event.y)
         l, h = self._dims()
         c = self._colonnes()
-        col, lig = int((x - 6) // l), int((y - 6) // h)
+        m = self._marge()
+        col, lig = int((x - m) // l), int((y - m) // h)
         if col < 0 or col >= c or lig < 0:
             return None
         i = lig * c + col
@@ -729,10 +846,9 @@ class Application(ctk.CTk):
     def _survoler(self, i):
         if i == self.survol:
             return
-        ancien, self.survol = self.survol, i
-        for k in (ancien, i):
-            if k is not None:
-                self._dessiner_case(k)
+        self.survol = i
+        if self._anim is None:
+            self._animer()
         self.toile.configure(cursor="hand2" if i is not None else "")
 
     def _selectionner(self, nouvelle: set[int], courant: int | None):
@@ -752,13 +868,13 @@ class Application(ctk.CTk):
         if not n:
             self.barre_sel.place_forget()
             return
-        self.lbl_sel.configure(text=f"{n} sélectionnée{'s' if n > 1 else ''}")
+        self.lbl_sel.configure(text=f"{n} photo{'s' if n > 1 else ''}")
         etapes = [p.prochaine(self.flux) for p in self._selectionnees() if p.choix != REJET]
         logiciels = {e.logiciel for e in etapes if e} - {"aucun"}
         if len(logiciels) == 1:
-            texte = f"Envoyer vers {noyau.LOGICIELS[logiciels.pop()]}  ▶"
+            texte = f"Envoyer → {noyau.LOGICIELS[logiciels.pop()]}"
         elif logiciels:
-            texte = "Envoyer à l'étape suivante  ▶"
+            texte = "Étape suivante  ▶"
         else:
             texte = None
         if texte:
@@ -892,14 +1008,29 @@ class Application(ctk.CTk):
             self.clipboard_append(str(dossier))
             return (debut + f" Exporte en JPG dans {dossier.name} — le chemin est copié, "
                             "colle-le (Ctrl+V) dans la fenêtre d'export.")
-        return debut + " Quand c'est fini, coche-les et clique « ✓ Étape faite »."
+        return debut + " Quand c'est fini, coche-les et clique « Étape faite »."
 
-    def ouvrir_avec_logiciel(self, cle_logiciel: str):
-        fichiers = [f for f in (p.fichier_a_ouvrir() for p in self._selectionnees()) if f]
+    def ouvrir_avec_logiciel(self, cle_logiciel: str, photos=None):
+        """Ouvre les photos dans Photoshop ou Lightroom, quelle que soit leur étape."""
+        if photos is None:
+            photos = self._selectionnees()
+            if not photos and self.courant is not None and self.courant < len(self.photos):
+                photos = [self.photos[self.courant]]
+        fichiers = [f for f in (p.fichier_a_ouvrir() for p in photos) if f]
+        nom = noyau.LOGICIELS[cle_logiciel]
+        if not fichiers:
+            self.notifier("Coche d'abord les photos à ouvrir.")
+            return
+        if not self.reglages.get(cle_logiciel):
+            messagebox.showwarning(nom, f"Indique où est installé {nom} dans ⚙ Paramètres.", parent=self)
+            self.ouvrir_parametres()
+            return
         try:
-            reglages.ouvrir_avec(self.reglages.get(cle_logiciel, ""), fichiers)
+            reglages.ouvrir_avec(self.reglages[cle_logiciel], fichiers)
         except Exception as ex:
-            messagebox.showerror(noyau.LOGICIELS[cle_logiciel], str(ex), parent=self)
+            messagebox.showerror(nom, str(ex), parent=self)
+            return
+        self.notifier(f"{len(fichiers)} photo(s) ouverte(s) dans {nom}.")
 
     def notifier(self, texte, duree=5000):
         self.toast.configure(text="  " + texte + "  ")
@@ -1041,11 +1172,12 @@ def _rect_arrondi(toile, x1, y1, x2, y2, r, **kw):
     return toile.create_polygon(points, smooth=True, **kw)
 
 
-def _arrondir(im: Image.Image, rayon: int, fond: str) -> Image.Image:
+def _arrondir(im: Image.Image, rayon: int, fond: str | None = None) -> Image.Image:
+    """Coins arrondis transparents."""
     masque = Image.new("L", im.size, 0)
     ImageDraw.Draw(masque).rounded_rectangle([0, 0, im.width - 1, im.height - 1], rayon, fill=255)
-    sortie = Image.new("RGB", im.size, fond)
-    sortie.paste(im.convert("RGB"), (0, 0), masque)
+    sortie = im.convert("RGBA")
+    sortie.putalpha(masque)
     return sortie
 
 
@@ -1144,6 +1276,15 @@ class PanneauDetail(ctk.CTkFrame):
                               font=police(16), corner_radius=6, command=lambda n=n: self._noter(n))
             b.pack(side="left")
             self.etoiles.append(b)
+
+        ouvrir = ctk.CTkFrame(c, fg_color="transparent")
+        ouvrir.pack(fill="x", padx=8, pady=(10, 0))
+        ouvrir.grid_columnconfigure((0, 1), weight=1)
+        for col, (texte, cle) in enumerate((("Ps   Photoshop", "photoshop"), ("Lr   Lightroom", "lightroom"))):
+            ctk.CTkButton(ouvrir, text=texte, height=36, corner_radius=10, fg_color="#001e36",
+                          hover_color="#00304f", text_color="#31a8ff", font=police(13, True),
+                          command=lambda c=cle: self.app.ouvrir_avec_logiciel(c, [self.photo] if self.photo else [])
+                          ).grid(row=0, column=col, sticky="ew", padx=(0 if col == 0 else 4, 4 if col == 0 else 0))
 
         self._titre(c, "AVANCEMENT")
         self.cadre_etapes = ctk.CTkFrame(c, fg_color=CARTE, corner_radius=12)
@@ -1269,6 +1410,7 @@ class GrandApercu(ctk.CTkToplevel):
         super().__init__(app, fg_color="#000000")
         self.app = app
         self.index = index
+        self.after(250, lambda: poser_icone(self))
         self.title("Aperçu")
         self.cote = min(self.winfo_screenwidth(), self.winfo_screenheight()) - 140
         self.geometry(f"{int(self.cote * 1.4)}x{self.cote}")
@@ -1309,6 +1451,7 @@ class Fenetre(ctk.CTkToplevel):
         super().__init__(app, fg_color=FOND)
         self.app = app
         self.title(titre)
+        self.after(250, lambda: poser_icone(self))
         self.transient(app)
         self.resizable(False, False)
         self.corps = ctk.CTkFrame(self, fg_color="transparent")
@@ -1713,7 +1856,7 @@ class FenetreParametres(Fenetre):
             carte.pack(fill="x", pady=4, padx=4)
             carte.grid_columnconfigure(4, weight=1)
             ctk.CTkLabel(carte, text=str(k + 1), width=28, height=28, corner_radius=14,
-                         fg_color=COULEUR_LOGICIEL[e.logiciel], text_color="#0f1115",
+                         fg_color=COULEUR_LOGICIEL[e.logiciel], text_color="#0a0a0b",
                          font=police(12, True)).grid(row=0, column=0, rowspan=2, padx=10, pady=10)
             v_nom = ctk.StringVar(value=e.nom)
             ent = ctk.CTkEntry(carte, textvariable=v_nom, height=32, width=260, corner_radius=8, fg_color=CARTE,

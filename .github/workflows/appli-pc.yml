@@ -1,6 +1,6 @@
-# Fabrique automatiquement GestionPhotosAuto.exe (appli PC Windows)
-# et le met en téléchargement dans « Releases » du dépôt.
-name: Appli PC Windows
+# Fabrique automatiquement l'appli (Windows .exe et Mac .app)
+# et la met en téléchargement dans « Releases » du dépôt.
+name: Appli PC (Windows et Mac)
 
 on:
   push:
@@ -13,40 +13,88 @@ permissions:
   contents: write
 
 jobs:
-  exe:
+  windows:
     runs-on: windows-latest
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: gestion-photos
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-
       - name: Installer les dépendances
         run: python -m pip install -r requirements.txt rawpy pyinstaller
-
       - name: Tests
         run: python -m unittest discover -s tests -v
-
       - name: L'interface démarre
+        timeout-minutes: 3
         run: python -c "import interface; app = interface.Application(); app.after(2000, app.quitter); app.mainloop(); print('ok')"
-
       - name: Fabriquer le .exe
-        run: python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto --collect-all rawpy --collect-all customtkinter app.py
+        run: >
+          python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto
+          --icon ressources/logo.ico --add-data "ressources:ressources"
+          --collect-all rawpy --collect-all customtkinter app.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: gestion-photos/dist/GestionPhotosAuto.exe
 
+  mac:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gestion-photos
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Installer les dépendances
+        run: python -m pip install -r requirements.txt rawpy pyinstaller
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+      - name: L'interface démarre
+        timeout-minutes: 3
+        run: python -c "import interface; app = interface.Application(); app.after(2000, app.quitter); app.mainloop(); print('ok')"
+      - name: Fabriquer l'appli Mac
+        run: >
+          python -m PyInstaller --noconfirm --windowed --name "Gestion Photos Auto"
+          --icon ressources/logo.icns --add-data "ressources:ressources"
+          --osx-bundle-identifier com.diogocarphotography.gestionphotos
+          --collect-all rawpy --collect-all customtkinter app.py
+      - name: Compresser
+        run: ditto -c -k --keepParent "dist/Gestion Photos Auto.app" GestionPhotosAuto-Mac.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac
+          path: gestion-photos/GestionPhotosAuto-Mac.zip
+
+  publier:
+    needs: [windows, mac]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: fichiers
       - name: Publier le téléchargement
         uses: softprops/action-gh-release@v2
         with:
           tag_name: appli-pc
           target_commitish: ${{ github.sha }}
-          name: Gestion Photos Auto (appli PC Windows)
+          name: Gestion Photos Auto V.1
           make_latest: true
-          files: gestion-photos/dist/GestionPhotosAuto.exe
+          files: |
+            fichiers/windows/GestionPhotosAuto.exe
+            fichiers/mac/GestionPhotosAuto-Mac.zip
           body: |
-            **Télécharger :** clique sur `GestionPhotosAuto.exe` ci-dessous, puis double-clique dessus.
+            ## Gestion Photos Auto V.1
 
-            Si Windows affiche « Windows a protégé votre ordinateur » :
-            clique sur **Informations complémentaires** puis **Exécuter quand même**.
+            **Windows :** télécharge `GestionPhotosAuto.exe` et double-clique dessus.
+            Si Windows affiche « Windows a protégé votre ordinateur » : **Informations complémentaires** → **Exécuter quand même**.
+
+            **Mac (Apple Silicon M1/M2/M3/M4) :** télécharge `GestionPhotosAuto-Mac.zip`, double-clique pour le décompresser,
+            glisse « Gestion Photos Auto » dans **Applications**, puis **clic droit → Ouvrir** la première fois.
+            Si le Mac refuse : **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**.

@@ -1,4 +1,6 @@
-# Gestion Photos Auto — appli PC
+# Gestion Photos Auto V.1 — appli PC et Mac
+
+<img src="ressources/logo_256.png" width="96" alt="logo">
 
 Appli de bureau pour **organiser tes shootings de voitures** et suivre chaque photo,
 de la carte SD jusqu'au JPG final :
@@ -20,6 +22,17 @@ L'appli travaille directement sur **tes dossiers** : rien n'est envoyé sur Inte
 4. Choisis le dossier où ranger tous tes shootings. C'est tout.
 
 Pas besoin d'installer Python. Le `.exe` est refabriqué automatiquement à chaque mise à jour.
+
+## Installation (Mac)
+
+1. Télécharge **GestionPhotosAuto-Mac.zip** :
+   <https://github.com/diogocerqueira660-png/SITE-PHOTO/releases/latest/download/GestionPhotosAuto-Mac.zip>
+2. Double-clique dessus pour le décompresser, puis glisse **Gestion Photos Auto** dans **Applications**.
+3. La première fois : **clic droit → Ouvrir** (l'appli n'est pas signée par Apple).
+   Si le Mac refuse : **Réglages Système → Confidentialité et sécurité → Ouvrir quand même**.
+
+Version faite pour les Mac Apple Silicon (M1, M2, M3, M4). Sur un ancien Mac Intel,
+utilise `lancer.command` (avec Python installé).
 
 ## Comment ça marche
 
@@ -55,7 +68,11 @@ Les photos gardées passent à la première étape.
   (ou `Ctrl`+clic, `Maj`+clic, bouton **Tout**).
 - Une barre apparaît en bas : **« Envoyer vers Photoshop ▶ »** (ou Lightroom, selon l'étape).
   Toutes les photos cochées s'ouvrent d'un coup dans le bon logiciel.
-- **« ✓ Étape faite »** pour valider une étape à la main (ex. l'éclairage Lightroom).
+- **« Étape faite »** pour valider une étape à la main (ex. l'éclairage Lightroom).
+- Les boutons **Ps** et **Lr** ouvrent les photos cochées dans Photoshop ou Lightroom
+  **quelle que soit leur étape** (aussi dans le panneau de droite et au clic droit).
+
+Au survol de la souris, la photo s'avance avec une ombre : c'est celle sur laquelle tu vas cliquer.
 
 L'appli **voit toute seule** quand une étape est finie :
 
@@ -113,7 +130,8 @@ et **quand elle est finie** (je la coche moi-même / un TIF apparaît / un JPG a
 
 Python 3.10+ ([python.org](https://www.python.org/downloads/), cocher « Add python.exe to PATH »),
 puis double-clic sur `lancer.bat` (Windows) ou `lancer.command` (Mac).
-`creer_exe.bat` fabrique le `.exe` en local.
+`creer_exe.bat` fabrique le `.exe` en local, `creer_app_mac.command` l'appli Mac.
+Le logo se régénère avec `python ressources/creer_logo.py`.
 
 ```
 app.py          → point d'entrée
