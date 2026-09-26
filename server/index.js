@@ -117,6 +117,12 @@ app.post('/api/deconnexion', (req, res) => {
   res.json({ ok: true });
 });
 
+// Vérification par l'hébergeur que le site répond
+app.get('/api/sante', (req, res) => {
+  db.prepare('SELECT 1').get();
+  res.json({ ok: true });
+});
+
 app.get('/api/moi', (req, res) => {
   res.json({ utilisateur: req.utilisateur });
 });
