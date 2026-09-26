@@ -8,6 +8,10 @@ Portfolio de photographie automobile avec **espace client** et **espace admin**.
 - **Espace admin** (toi) : créer un shooting, envoyer les photos depuis le navigateur (glisser-déposer),
   choisir la couverture, donner l'accès aux clients par leur email, gérer les comptes clients.
 
+> **Appli PC de gestion des photos** : le dossier [`gestion-photos/`](gestion-photos/) contient une
+> appli de bureau pour organiser tes shootings sur ton ordinateur (import carte SD, tri,
+> suivi RAW → Lightroom → Photoshop → Final, export web/Instagram). Voir son README.
+
 ## Comment ça marche
 
 1. Dans l'admin, tu crées un shooting et tu indiques l'email du client (ex : `lucas@gmail.com`).
