@@ -432,6 +432,47 @@ def lister_shootings(bibliotheque: Path | str) -> list[Shooting]:
     return sorted(shootings, key=lambda s: (s.infos.get("date") or s.nom), reverse=True)
 
 
+def fichiers_de(photo: Photo) -> list[Path]:
+    """Tous les fichiers d'une photo (toutes versions + fichiers .xmp à côté des RAW)."""
+    fichiers = [f for liste in photo.fichiers.values() for f in liste]
+    for f in list(fichiers):
+        xmp = f.with_suffix(".xmp")
+        if f.suffix.lower() in EXT_RAW and xmp.is_file() and xmp not in fichiers:
+            fichiers.append(xmp)
+    return fichiers
+
+
+def mettre_a_la_corbeille(shooting: "Shooting", photos: list[Photo], corbeille=None) -> int:
+    """Envoie les fichiers des photos à la corbeille de Windows / du Mac (récupérables).
+
+    Si la corbeille du système n'est pas disponible, les fichiers sont déplacés
+    dans le dossier caché « .corbeille » du shooting. Renvoie le nombre de fichiers.
+    """
+    if corbeille is None:
+        try:
+            from send2trash import send2trash as corbeille
+        except ImportError:
+            corbeille = None
+    n = 0
+    for p in photos:
+        for f in fichiers_de(p):
+            if not f.exists():
+                continue
+            try:
+                if corbeille is None:
+                    raise OSError("pas de corbeille système")
+                corbeille(str(f))
+            except OSError:
+                dest = shooting.dossier / ".corbeille" / f.relative_to(shooting.dossier)
+                dest.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(f), str(nom_libre(dest)))
+            n += 1
+        shooting.meta.pop(p.cle, None)
+    shooting.photos = [p for p in shooting.photos if p not in photos]
+    shooting.enregistrer()
+    return n
+
+
 def nom_libre(chemin: Path) -> Path:
     """Évite d'écraser un fichier : IMG.jpg -> IMG (2).jpg."""
     if not chemin.exists():

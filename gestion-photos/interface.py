@@ -206,6 +206,7 @@ class Application(ctk.CTk):
         actions = ctk.CTkFrame(entete, fg_color="transparent")
         actions.grid(row=0, column=1, rowspan=2, sticky="e")
         self.boutons_shooting = [
+            bouton(actions, "▶  Trier les photos", self.trier, "principal", width=160),
             bouton(actions, "⤓  Importer", self.importer, width=110),
             bouton(actions, "↗  Export web / Insta", self.exporter_web, width=160),
             bouton(actions, "•••", self._menu_plus, width=46),
@@ -321,6 +322,8 @@ class Application(ctk.CTk):
             t.bind(touche.upper(), lambda e, a=action: a())
         t.bind("<Return>", lambda e: self.envoyer())
         t.bind("<space>", lambda e: self.grand_apercu())
+        t.bind("t", lambda e: self.trier())
+        t.bind("T", lambda e: self.trier())
         t.bind("<Escape>", lambda e: self.deselectionner())
         t.bind("<Control-a>", lambda e: self.tout_selectionner())
         t.bind("<Left>", lambda e: self.deplacer(-1))
@@ -442,7 +445,8 @@ class Application(ctk.CTk):
             try:
                 with os.scandir(d) as it:
                     for e in it:
-                        if e.is_file() and not e.name.startswith("."):
+                        if (e.is_file() and not e.name.startswith(".")
+                                and not e.name.startswith(noyau.FICHIER_SHOOTING)):
                             sig.append((e.name, e.stat().st_size))
             except OSError:
                 continue
@@ -526,7 +530,7 @@ class Application(ctk.CTk):
                          "pour les ouvrir toutes d'un coup.")
         else:
             texte = {
-                A_TRIER: "Trie tes photos : P ou « Garder » pour les bonnes, X pour rejeter, 1 à 5 pour les étoiles.",
+                A_TRIER: "Clique « ▶ Trier les photos » pour les voir en grand une par une : Garder ou Supprimer.",
                 TERMINEE: "Photos finies (JPG dans 03_JPG). Prêtes pour l'export web / Instagram.",
                 REJETEE: "Photos écartées. U pour les remettre dans le tri.",
             }.get(f, "Coche les photos avec le rond en haut à gauche, puis envoie-les à l'étape suivante. "
@@ -1049,6 +1053,8 @@ class Application(ctk.CTk):
         m.add_command(label="Lightroom ← écrire mes notes (XMP)", command=self.ecrire_xmp)
         m.add_command(label="Lightroom → lire ses notes (XMP)", command=self.lire_xmp)
         m.add_separator()
+        m.add_command(label="🗑  Mettre les photos rejetées à la corbeille", command=self.corbeille_rejetees)
+        m.add_separator()
         m.add_command(label="⟳  Actualiser (F5)", command=self.recharger)
         b = self.boutons_shooting[-1]
         m.tk_popup(b.winfo_rootx(), b.winfo_rooty() + b.winfo_height() + 4)
@@ -1139,6 +1145,30 @@ class Application(ctk.CTk):
 
     def exporter_web(self):
         FenetreExport(self)
+
+    def trier(self):
+        """Ouvre le tri plein écran : d'abord les photos pas encore triées, sinon toutes."""
+        if not self.shooting:
+            return
+        self.detail.enregistrer_commentaire()
+        a_trier = [p for p in self.shooting.photos if p.colonne(self.flux) == A_TRIER]
+        photos = self._selectionnees() if len(self.selection) > 1 else (a_trier or list(self.shooting.photos))
+        if not photos:
+            self.notifier("Aucune photo à trier : importe d'abord ta carte SD.")
+            return
+        FenetreTri(self, photos)
+
+    def corbeille_rejetees(self):
+        rejetees = [p for p in self.shooting.photos if p.choix == REJET]
+        if not rejetees:
+            self.notifier("Aucune photo rejetée.")
+            return
+        if messagebox.askyesno("Corbeille", f"Envoyer les fichiers des {len(rejetees)} photos rejetées à la "
+                               "corbeille ?\n\n(Récupérables depuis la corbeille de l'ordinateur.)", parent=self):
+            nb = noyau.mettre_a_la_corbeille(self.shooting, rejetees)
+            self.recharger()
+            self._maj_carte_active()
+            self.notifier(f"🗑  {len(rejetees)} photo(s) ({nb} fichiers) envoyée(s) à la corbeille.")
 
     def ouvrir_parametres(self):
         FenetreParametres(self)
@@ -1445,6 +1475,282 @@ class GrandApercu(ctk.CTkToplevel):
 
 
 # --------------------------------------------------------------------------- fenêtres
+
+class FenetreTri(ctk.CTkToplevel):
+    """Tri plein écran : la photo en grand, « Supprimer » (rouge) ou « Garder » (vert)."""
+
+    def __init__(self, app: Application, photos: list[noyau.Photo]):
+        super().__init__(app, fg_color="#000000")
+        self.app = app
+        self.shooting = app.shooting
+        self.photos = photos
+        self.index = 0
+        self.historique: list[tuple[noyau.Photo, str, int]] = []  # pour « Retour »
+        self.cache: dict[str, Image.Image] = {}
+        self.image = None
+        self._redim = None
+        self._fini = False
+        self._attente = False
+        self.title(f"Tri · {app.shooting.infos.get('voiture') or app.shooting.nom}")
+        self.after(250, lambda: poser_icone(self))
+        l, h = self.winfo_screenwidth(), self.winfo_screenheight()
+        self.geometry(f"{l}x{h - 80}+0+0")
+        try:
+            if sys.platform.startswith("win"):
+                self.after(50, lambda: self.state("zoomed"))
+            elif sys.platform != "darwin":
+                self.attributes("-zoomed", True)
+        except tk.TclError:
+            pass
+
+        # -- haut : titre, compteur, fermer
+        haut = ctk.CTkFrame(self, fg_color="#000000")
+        haut.pack(fill="x", padx=24, pady=(16, 6))
+        ctk.CTkLabel(haut, text="Tri des photos", font=police(18, True), text_color=TEXTE).pack(side="left")
+        self.lbl_compteur = ctk.CTkLabel(haut, text="", font=police(15, True), text_color=DOUX)
+        self.lbl_compteur.place(relx=0.5, rely=0.5, anchor="center")
+        bouton(haut, "Terminer", self.quitter, "discret", width=100).pack(side="right")
+        self.barre = ctk.CTkProgressBar(self, height=4, corner_radius=2, fg_color="#1a1a1c",
+                                        progress_color=ACCENT)
+        self.barre.pack(fill="x", padx=24)
+        self.barre.set(0)
+
+        # -- centre : la photo
+        self.zone = tk.Frame(self, bg="#000000")
+        self.zone.pack(fill="both", expand=True, padx=24, pady=12)
+        self.lbl_photo = tk.Label(self.zone, bg="#000000", fg=DOUX, font=(POLICE, 14))
+        self.lbl_photo.place(relx=0.5, rely=0.5, anchor="center")
+        self.zone.bind("<Configure>", lambda e: self._planifier_affichage())
+
+        # -- bas : nom + boutons
+        bas = ctk.CTkFrame(self, fg_color="#000000")
+        bas.pack(fill="x", pady=(0, 22))
+        case = ctk.CTkFrame(bas, fg_color="#000000", height=32)
+        case.pack(fill="x")
+        self.pastille = ctk.CTkLabel(case, text="", font=police(14, True), corner_radius=14, height=30,
+                                     bg_color="#000000")
+        self.lbl_nom = ctk.CTkLabel(bas, text="", font=police(12), text_color=DOUX)
+        self.lbl_nom.pack(pady=(2, 10))
+        boutons = ctk.CTkFrame(bas, fg_color="#000000")
+        boutons.pack()
+        self.btn_supprimer = ctk.CTkButton(
+            boutons, text="✕   Supprimer", width=230, height=58, corner_radius=29, font=police(18, True),
+            fg_color="#dc2626", hover_color="#ef4444", text_color="#ffffff", command=lambda: self.decider(REJET))
+        self.btn_supprimer.pack(side="left", padx=14)
+        self.btn_retour = ctk.CTkButton(
+            boutons, text="↶", width=58, height=58, corner_radius=29, font=police(22, True),
+            fg_color="#1c1c1f", hover_color="#2a2a2e", text_color=DOUX, command=self.retour)
+        self.btn_retour.pack(side="left", padx=4)
+        self.btn_garder = ctk.CTkButton(
+            boutons, text="✓   Garder", width=230, height=58, corner_radius=29, font=police(18, True),
+            fg_color="#16a34a", hover_color="#22c55e", text_color="#ffffff", command=lambda: self.decider(PICK))
+        self.btn_garder.pack(side="left", padx=14)
+        self.lbl_aide = ctk.CTkLabel(
+            bas, text="←  →  naviguer   ·   X ou Suppr : supprimer   ·   P ou Entrée : garder   ·   "
+                      "1-5 : étoiles   ·   Ctrl+Z : retour   ·   Échap : terminer",
+            font=police(11), text_color=PALE)
+        self.lbl_aide.pack(pady=(12, 0))
+
+        for touche in ("x", "X", "<Delete>", "<BackSpace>"):
+            self.bind(touche, lambda e: self.decider(REJET))
+        for touche in ("p", "P", "<Return>", "<KP_Enter>"):
+            self.bind(touche, lambda e: self.decider(PICK))
+        for n in range(6):
+            self.bind(str(n), lambda e, n=n: self.noter(n))
+        self.bind("<Left>", lambda e: self.aller(self.index - 1))
+        self.bind("<Right>", lambda e: self.aller(self.index + 1))
+        self.bind("<Control-z>", lambda e: self.retour())
+        self.bind("<Command-z>" if sys.platform == "darwin" else "<Control-Z>", lambda e: self.retour())
+        self.bind("<Escape>", lambda e: self.quitter())
+        self.protocol("WM_DELETE_WINDOW", self.quitter)
+        self.after(150, self._premier_plan)
+        self.aller(0)
+
+    def _premier_plan(self):
+        self.lift()
+        self.focus_force()
+        try:
+            self.grab_set()  # la fenêtre principale attend la fin du tri
+        except tk.TclError:
+            pass
+
+    # -- navigation / affichage
+    def aller(self, i):
+        if not self.photos:
+            self._ecran_fin()
+            return
+        if i >= len(self.photos):
+            self._ecran_fin()
+            return
+        self.index = max(0, i)
+        p = self.photos[self.index]
+        self.lbl_compteur.configure(text=f"{self.index + 1} / {len(self.photos)}")
+        self.barre.set(sum(1 for x in self.photos if x.choix in (PICK, REJET)) / len(self.photos))
+        etoiles = "   " + "★" * p.note if p.note else ""
+        self.lbl_nom.configure(text=p.nom + etoiles)
+        self._maj_pastille(p)
+        self._charger(self.index)
+        for k in (1, 2):  # on prépare les suivantes
+            if self.index + k < len(self.photos):
+                self._charger(self.index + k, afficher=False)
+
+    def _maj_pastille(self, p):
+        if p.choix == PICK:
+            self.pastille.configure(text="  ✓  Gardée  ", fg_color="#16a34a", text_color="#ffffff")
+        elif p.choix == REJET:
+            self.pastille.configure(text="  ✕  Supprimée  ", fg_color="#dc2626", text_color="#ffffff")
+        else:
+            self.pastille.place_forget()
+            return
+        self.pastille.place(relx=0.5, rely=0.5, anchor="center")
+
+    def _charger(self, i, afficher=True):
+        f = self.photos[i].fichier_apercu()
+        if f is None:
+            if afficher:
+                self.lbl_photo.configure(image="", text="Aperçu indisponible")
+            return
+        cle = str(f)
+        if cle in self.cache:
+            if afficher:
+                self._afficher(cle)
+            return
+        if afficher:
+            self.lbl_photo.configure(image="", text="Chargement…")
+
+        def travail():
+            try:
+                im = apercus.miniature(f, 2000)
+            except Exception:
+                im = apercus.vignette_texte(f.suffix.upper().lstrip("."), 600)
+            self.after(0, lambda: self._recu(cle, im, i))
+
+        self.app.executeur.submit(travail)
+
+    def _recu(self, cle, im, i):
+        if not self.winfo_exists():
+            return
+        self.cache[cle] = im
+        if len(self.cache) > 12:
+            self.cache.pop(next(iter(self.cache)))
+        if not self._fini and i == self.index:
+            self._afficher(cle)
+
+    def _planifier_affichage(self):
+        if self._redim:
+            self.after_cancel(self._redim)
+        self._redim = self.after(80, lambda: self._charger(self.index) if not self._fini and self.photos else None)
+
+    def _afficher(self, cle):
+        im = self.cache[cle]
+        lz, hz = max(self.zone.winfo_width(), 200), max(self.zone.winfo_height(), 200)
+        ratio = min(lz / im.width, hz / im.height)
+        taille = (max(1, int(im.width * ratio)), max(1, int(im.height * ratio)))
+        self.image = ImageTk.PhotoImage(im.resize(taille, Image.LANCZOS))
+        self.lbl_photo.configure(image=self.image, text="")
+
+    # -- décisions
+    def decider(self, choix):
+        if self._fini or self._attente or not self.photos:
+            return
+        p = self.photos[self.index]
+        self.historique.append((p, p.choix, self.index))
+        p.choix = choix
+        self.shooting.enregistrer()
+        self._maj_pastille(p)
+        self._attente = True
+        self.after(170, self._suivante)
+
+    def _suivante(self):
+        self._attente = False
+        if self.winfo_exists():
+            self.aller(self.index + 1)
+
+    def noter(self, n):
+        if self._fini or not self.photos:
+            return
+        p = self.photos[self.index]
+        p.note = n
+        self.shooting.enregistrer()
+        self.lbl_nom.configure(text=p.nom + ("   " + "★" * n if n else ""))
+
+    def retour(self):
+        if not self.historique:
+            return
+        p, ancien, index = self.historique.pop()
+        p.choix = ancien
+        self.shooting.enregistrer()
+        if self._fini:
+            self._quitter_ecran_fin()
+        self.aller(index)
+
+    # -- fin du tri
+    def _ecran_fin(self):
+        self._fini = True
+        self.lbl_photo.place_forget()
+        self.pastille.place_forget()
+        for w in (self.btn_supprimer, self.btn_retour, self.btn_garder):
+            w.pack_forget()
+        self.lbl_nom.configure(text="")
+        self.lbl_aide.configure(text="Ctrl+Z : revenir à la dernière photo")
+        self.barre.set(1)
+        self.lbl_compteur.configure(text="Terminé")
+        gardees = [p for p in self.photos if p.choix == PICK]
+        self.supprimees = [p for p in self.photos if p.choix == REJET]
+        self.fin = ctk.CTkFrame(self.zone, fg_color="#000000")
+        self.fin.place(relx=0.5, rely=0.45, anchor="center")
+        ctk.CTkLabel(self.fin, text="✓", font=police(64, True), text_color=VERT).pack()
+        ctk.CTkLabel(self.fin, text="Tri terminé", font=police(30, True), text_color=TEXTE).pack(pady=(0, 16))
+        chiffres = ctk.CTkFrame(self.fin, fg_color="#000000")
+        chiffres.pack(pady=(0, 28))
+        for n, texte, couleur in ((len(gardees), "gardées", "#22c55e"),
+                                  (len(self.supprimees), "supprimées", "#ef4444")):
+            bloc = ctk.CTkFrame(chiffres, fg_color="#111113", corner_radius=16, width=170, height=110)
+            bloc.pack(side="left", padx=10)
+            bloc.pack_propagate(False)
+            ctk.CTkLabel(bloc, text=str(n), font=police(36, True), text_color=couleur).pack(pady=(14, 0))
+            ctk.CTkLabel(bloc, text=texte, font=police(13), text_color=DOUX).pack()
+        if self.supprimees:
+            n = len(self.supprimees)
+            texte = ("🗑   Mettre la photo supprimée à la corbeille" if n == 1
+                     else f"🗑   Mettre les {n} photos supprimées à la corbeille")
+            ctk.CTkButton(self.fin, text=texte,
+                          height=50, corner_radius=25, font=police(15, True), fg_color="#dc2626",
+                          hover_color="#ef4444", text_color="#ffffff",
+                          command=self._corbeille).pack(fill="x", pady=4)
+            ctk.CTkLabel(self.fin, text="Elles restent récupérables dans la corbeille de l'ordinateur.",
+                         font=police(12), text_color=PALE).pack(pady=(0, 10))
+        ctk.CTkButton(self.fin, text="Terminer", height=50, corner_radius=25, font=police(15, True),
+                      fg_color="#16a34a", hover_color="#22c55e", text_color="#ffffff",
+                      command=self.quitter).pack(fill="x", pady=4)
+
+    def _quitter_ecran_fin(self):
+        self._fini = False
+        self.fin.destroy()
+        self.lbl_photo.place(relx=0.5, rely=0.5, anchor="center")
+        self.btn_supprimer.pack(side="left", padx=14)
+        self.btn_retour.pack(side="left", padx=4)
+        self.btn_garder.pack(side="left", padx=14)
+        self.lbl_aide.configure(text="←  →  naviguer   ·   X ou Suppr : supprimer   ·   P ou Entrée : garder   ·   "
+                                     "1-5 : étoiles   ·   Ctrl+Z : retour   ·   Échap : terminer")
+
+    def _corbeille(self):
+        n = len(self.supprimees)
+        if not messagebox.askyesno("Corbeille", f"Envoyer les fichiers des {n} photos supprimées à la corbeille ?\n\n"
+                                   "(RAW, TIF et JPG de chaque photo. Récupérables depuis la corbeille.)",
+                                   parent=self):
+            return
+        nb = noyau.mettre_a_la_corbeille(self.shooting, self.supprimees)
+        self.quitter()
+        self.app.notifier(f"🗑  {n} photo(s) ({nb} fichiers) envoyée(s) à la corbeille.")
+
+    def quitter(self):
+        self.shooting.enregistrer()
+        self.destroy()
+        self.app.recharger()
+        self.app._maj_carte_active()
+        self.app.toile.focus_set()
+
 
 class Fenetre(ctk.CTkToplevel):
     def __init__(self, app, titre, sous_titre=""):

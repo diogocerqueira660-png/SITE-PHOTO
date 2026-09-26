@@ -35,7 +35,7 @@ jobs:
         run: >
           python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto
           --icon ressources/logo.ico --add-data "ressources:ressources"
-          --collect-all rawpy --collect-all customtkinter app.py
+          --collect-all rawpy --collect-all customtkinter --collect-all send2trash app.py
       - uses: actions/upload-artifact@v4
         with:
           name: windows
@@ -64,7 +64,7 @@ jobs:
           python -m PyInstaller --noconfirm --windowed --name "Gestion Photos Auto"
           --icon ressources/logo.icns --add-data "ressources:ressources"
           --osx-bundle-identifier com.diogocarphotography.gestionphotos
-          --collect-all rawpy --collect-all customtkinter app.py
+          --collect-all rawpy --collect-all customtkinter --collect-all send2trash app.py
       - name: Compresser
         run: ditto -c -k --keepParent "dist/Gestion Photos Auto.app" GestionPhotosAuto-Mac.zip
       - uses: actions/upload-artifact@v4

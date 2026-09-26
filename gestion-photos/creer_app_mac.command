@@ -5,5 +5,5 @@ python3 -m pip install --user pyinstaller rawpy -r requirements.txt
 python3 -m PyInstaller --noconfirm --windowed --name "Gestion Photos Auto" \
   --icon ressources/logo.icns --add-data "ressources:ressources" \
   --osx-bundle-identifier com.diogocarphotography.gestionphotos \
-  --collect-all rawpy --collect-all customtkinter app.py
+  --collect-all rawpy --collect-all customtkinter --collect-all send2trash app.py
 echo "Terminé : dist/Gestion Photos Auto.app"

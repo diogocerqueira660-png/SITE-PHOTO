@@ -154,6 +154,44 @@ class TestShooting(unittest.TestCase):
         self.assertTrue((d / "01_RAW/IMG_7-Edit.tif").exists())
 
 
+class TestCorbeille(unittest.TestCase):
+    def test_supprimer_toutes_les_versions(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            s = Shooting.creer(tmp, "BMW M3", jour=date(2026, 9, 1))
+            d = s.dossier
+            ecrire(d / "01_RAW/IMG_1.CR3")
+            ecrire(d / "01_RAW/IMG_1.xmp")
+            ecrire(d / "01_RAW/IMG_1-Edit.tif")
+            ecrire(d / "01_RAW/IMG_2.CR3")
+            p1, p2 = s.analyser()
+            p1.choix, p2.choix = REJET, PICK
+            s.enregistrer()
+            envoyes = []
+
+            def corbeille(chemin):
+                envoyes.append(chemin)
+                os.remove(chemin)
+
+            self.assertEqual(noyau.mettre_a_la_corbeille(s, [p1], corbeille=corbeille), 3)
+            self.assertEqual(sorted(Path(f).name for f in envoyes), ["IMG_1-Edit.tif", "IMG_1.CR3", "IMG_1.xmp"])
+            s2 = Shooting(d)
+            self.assertEqual([p.cle for p in s2.analyser()], ["img_2"])
+            self.assertNotIn("img_1", s2.meta)
+
+    def test_repli_sans_corbeille_systeme(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            s = Shooting.creer(tmp, "BMW M3", jour=date(2026, 9, 1))
+            ecrire(s.dossier / "01_RAW/IMG_1.CR3")
+            (p,) = s.analyser()
+
+            def refus(chemin):
+                raise OSError("non")
+
+            self.assertEqual(noyau.mettre_a_la_corbeille(s, [p], corbeille=refus), 1)
+            self.assertTrue((s.dossier / ".corbeille/01_RAW/IMG_1.CR3").exists())
+            self.assertEqual(Shooting(s.dossier).analyser(), [])  # la corbeille cachée est ignorée
+
+
 class TestImport(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

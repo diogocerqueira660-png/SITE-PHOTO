@@ -53,14 +53,28 @@ utilise `lancer.command` (avec Python installé).
 La carte est détectée toute seule. Seules les nouvelles photos sont copiées, chaque copie est
 vérifiée, et elles peuvent être renommées (`2026-09-26_Porsche-911-GT3_0001.CR3`).
 
-### 3. Le tri
+### 3. Le tri, photo par photo
 
-En haut, les **étapes** sont des boutons : *Toutes · À trier › Lightroom · éclairage ›
-Photoshop · retouche › Lightroom · export JPG · Terminées · Rejetées*, avec le nombre de
-photos à chaque étape. Clique sur une étape pour ne voir que ses photos.
+Clique **▶ Trier les photos** (ou touche `T`) : chaque photo s'affiche **en grand**, avec en bas
+un gros bouton rouge **✕ Supprimer** et un gros bouton vert **✓ Garder**.
 
-Dans *À trier* : `P` garder, `X` rejeter, `1`–`5` étoiles, `Espace` pour voir en grand.
-Les photos gardées passent à la première étape.
+| Touche | Action |
+|--------|--------|
+| `P` ou `Entrée` | Garder |
+| `X` ou `Suppr` | Supprimer |
+| `1` … `5` | Étoiles |
+| `←` `→` | Photo précédente / suivante |
+| `Ctrl+Z` ou ↶ | Revenir sur le dernier choix |
+| `Échap` | Terminer |
+
+À la fin : le nombre de photos gardées / supprimées, et un bouton pour **mettre les supprimées
+à la corbeille** de l'ordinateur (toujours récupérables depuis la corbeille). Tant que tu ne
+cliques pas dessus, les photos supprimées sont seulement mises de côté (étape *Rejetées*).
+
+Le tri s'ouvre sur les photos *À trier* ; si tu as coché plusieurs photos, il s'ouvre sur celles-là.
+Dans la grille, les étapes en haut sont des boutons : *Toutes · À trier › Lightroom · éclairage ›
+Photoshop · retouche › Lightroom · export JPG · Terminées · Rejetées*, avec le nombre de photos
+à chaque étape.
 
 ### 4. Envoyer plusieurs photos d'un coup
 
