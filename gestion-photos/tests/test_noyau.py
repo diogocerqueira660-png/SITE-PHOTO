@@ -51,50 +51,93 @@ class TestShooting(unittest.TestCase):
 
     def test_creation(self):
         self.assertEqual(self.s.nom, "2026-09-26_Porsche-911-GT3_Lucas")
-        for _, dossier, _ in noyau.ETAPES:
+        for _, dossier, _ in noyau.DOSSIERS:
             self.assertTrue((self.s.dossier / dossier).is_dir())
         self.assertEqual([x.nom for x in noyau.lister_shootings(self.bib)], [self.s.nom])
         with self.assertRaises(FileExistsError):
             Shooting.creer(self.bib, "Porsche 911 GT3", "Lucas", date(2026, 9, 26))
 
-    def test_suivi_des_etapes(self):
+    def test_versions_et_flux_par_defaut(self):
         d = self.s.dossier
+        flux = noyau.flux_depuis(None)  # Lightroom -> Photoshop -> Lightroom
+        self.assertEqual([e.id for e in flux], ["lr1", "ps", "lr2"])
         ecrire(d / "01_RAW/IMG_1.CR3")
         ecrire(d / "01_RAW/IMG_1.JPG")
         ecrire(d / "01_RAW/IMG_2.CR3")
-        ecrire(d / "01_RAW/IMG_2-Edit.tif")          # « Modifier dans Photoshop » de Lightroom
         ecrire(d / "01_RAW/IMG_3.CR3")
-        ecrire(d / "02_LIGHTROOM/IMG_3.tif")
-        ecrire(d / "03_PHOTOSHOP/IMG_3-Edit.psd")
-        ecrire(d / "04_FINAL/IMG_3.jpg")
-        ecrire(d / "05_WEB/IMG_3_insta.jpg")
+        ecrire(d / "01_RAW/IMG_3-Edit.tif")          # « Modifier dans Photoshop » de Lightroom
+        ecrire(d / "01_RAW/IMG_4.CR3")
+        ecrire(d / "02_PHOTOSHOP/IMG_4-Edit.psd")
+        ecrire(d / "03_JPG/IMG_4.jpg")
+        ecrire(d / "04_WEB/IMG_4_insta.jpg")
         photos = {p.cle: p for p in self.s.analyser()}
-        self.assertEqual(set(photos), {"img_1", "img_2", "img_3"})
-        self.assertEqual(photos["img_1"].etapes, ["RAW"])
+        self.assertEqual(photos["img_1"].versions, ["RAW"])
         self.assertEqual(len(photos["img_1"].fichiers["RAW"]), 2)
-        self.assertEqual(photos["img_2"].etapes, ["RAW", "LR"])
-        self.assertEqual(photos["img_3"].etapes, ["RAW", "LR", "PS", "FINAL", "WEB"])
-        self.assertEqual(photos["img_1"].etat, "À trier")
-        self.assertEqual(photos["img_2"].etat, "Développée")
-        self.assertEqual(photos["img_3"].etat, "Terminée")
-        self.assertEqual(photos["img_2"].fichier_pour_photoshop().name, "IMG_2-Edit.tif")
-        self.assertEqual(photos["img_3"].fichier_pour_photoshop().name, "IMG_3-Edit.psd")
-        self.assertEqual(photos["img_1"].fichier_pour_photoshop().name, "IMG_1.CR3")
+        self.assertEqual(photos["img_3"].versions, ["RAW", "TIF"])
+        self.assertEqual(photos["img_4"].versions, ["RAW", "TIF", "JPG", "WEB"])
+
+        self.assertEqual(photos["img_1"].colonne(flux), noyau.A_TRIER)
+        photos["img_2"].choix = PICK
+        self.assertEqual(photos["img_2"].colonne(flux), "lr1")
+        self.assertEqual(photos["img_2"].etat(flux), "Lightroom · éclairage")
+        # un TIF = déjà passé dans Photoshop : reste l'export JPG dans Lightroom
+        self.assertEqual(photos["img_3"].etapes_faites(flux), [True, True, False])
+        self.assertEqual(photos["img_3"].colonne(flux), "lr2")
+        self.assertEqual(photos["img_4"].colonne(flux), noyau.TERMINEE)
+
+        # envoyer vers Photoshop : l'éclairage Lightroom est considéré comme fait
+        p2 = photos["img_2"]
+        p2.envoyer(flux, flux[1])
+        self.assertEqual(p2.colonne(flux), "ps")
+        self.assertEqual(p2.etat(flux), "Chez Photoshop")
+        p2.marquer_faite(flux)
+        self.assertEqual(p2.colonne(flux), "lr2")
+
+        self.assertEqual(photos["img_3"].fichier_a_ouvrir().name, "IMG_3-Edit.tif")
+        self.assertEqual(photos["img_1"].fichier_a_ouvrir().name, "IMG_1.CR3")
         self.assertEqual(photos["img_1"].fichier_apercu().suffix, ".JPG")
+
+    def test_autres_flux(self):
+        ecrire(self.s.dossier / "01_RAW/IMG_1.CR3")
+        ecrire(self.s.dossier / "01_RAW/IMG_1-Edit.tif")
+        (p,) = self.s.analyser()
+        ps_puis_lr = noyau.MODELES_FLUX["Photoshop → Lightroom"]
+        lr_puis_ps = noyau.MODELES_FLUX["Lightroom → Photoshop"]
+        self.assertEqual(p.colonne(ps_puis_lr), "lr2")
+        self.assertEqual(p.colonne(lr_puis_ps), "ps")  # ici Photoshop doit produire le JPG
+        perso = noyau.flux_depuis([{"id": "a", "nom": "Tri client", "logiciel": "aucun", "preuve": "manuel"},
+                                   {"id": "b", "nom": "Photoshop", "logiciel": "photoshop", "preuve": "jpg"},
+                                   {"nom": "invalide"}])
+        self.assertEqual([e.id for e in perso], ["a", "b"])
+        self.assertEqual(noyau.nouvel_id_etape(perso), "e1")
 
     def test_notes_enregistrees(self):
         ecrire(self.s.dossier / "01_RAW/IMG_1.CR3")
         ecrire(self.s.dossier / "01_RAW/IMG_2.CR3")
+        flux = noyau.flux_depuis(None)
         p1, p2 = self.s.analyser()
         p1.note, p1.choix, p1.commentaire = 4, PICK, "reflet portière"
+        p1.envoyer(flux, flux[1])
         p2.choix = REJET
         self.s.enregistrer()
         s2 = Shooting(self.s.dossier)
         p1, p2 = s2.analyser()
-        self.assertEqual((p1.note, p1.choix, p1.commentaire), (4, PICK, "reflet portière"))
-        self.assertEqual(p2.etat, "Rejetée")
-        r = s2.resume()
+        self.assertEqual((p1.note, p1.choix, p1.commentaire, p1.faites, p1.envoyee),
+                         (4, PICK, "reflet portière", {"lr1"}, "ps"))
+        self.assertEqual(p2.colonne(flux), noyau.REJETEE)
+        r = s2.resume(flux)
         self.assertEqual((r["total"], r["objectif"], r["terminees"]), (2, 1, 0))
+        self.assertEqual(r["colonnes"]["ps"], 1)
+
+    def test_anciens_dossiers(self):
+        d = self.s.dossier
+        (d / "04_WEB").rmdir()
+        (d / "05_WEB").mkdir()
+        ecrire(d / "01_RAW/IMG_1.CR3")
+        ecrire(d / "04_FINAL/IMG_1.jpg")
+        (p,) = self.s.analyser()
+        self.assertEqual(p.versions, ["RAW", "JPG"])
+        self.assertEqual(self.s.chemin_etape("WEB").name, "05_WEB")
 
     def test_ranger(self):
         d = self.s.dossier
@@ -102,15 +145,13 @@ class TestShooting(unittest.TestCase):
         ecrire(d / "IMG_9.xmp")
         ecrire(d / "IMG_9-Edit.tif")
         ecrire(d / "IMG_9_final.jpg")
-        ecrire(d / "02_LIGHTROOM/IMG_8-Edit.psd")
-        ecrire(d / "01_RAW/IMG_7-Edit.psd")  # à côté du RAW : Lightroom le suit, on n'y touche pas
+        ecrire(d / "01_RAW/IMG_7-Edit.tif")  # à côté du RAW : Lightroom le suit, on n'y touche pas
         plan = {s.name: dst.parent.name for s, dst in self.s.a_ranger()}
-        self.assertEqual(plan, {"IMG_9.CR3": "01_RAW", "IMG_9.xmp": "01_RAW", "IMG_9-Edit.tif": "02_LIGHTROOM",
-                                "IMG_9_final.jpg": "04_FINAL", "IMG_8-Edit.psd": "03_PHOTOSHOP"})
-        self.assertEqual(self.s.ranger(), 5)
+        self.assertEqual(plan, {"IMG_9.CR3": "01_RAW", "IMG_9.xmp": "01_RAW",
+                                "IMG_9-Edit.tif": "02_PHOTOSHOP", "IMG_9_final.jpg": "03_JPG"})
+        self.assertEqual(self.s.ranger(), 4)
         self.assertEqual(self.s.a_ranger(), [])
-        self.assertTrue((d / "03_PHOTOSHOP/IMG_8-Edit.psd").exists())
-        self.assertTrue((d / "01_RAW/IMG_7-Edit.psd").exists())
+        self.assertTrue((d / "01_RAW/IMG_7-Edit.tif").exists())
 
 
 class TestImport(unittest.TestCase):
@@ -192,8 +233,8 @@ class TestExportWeb(unittest.TestCase):
     def test_formats(self):
         from PIL import Image
         with tempfile.TemporaryDirectory() as tmp:
-            src = image(Path(tmp) / "04_FINAL/IMG_1.jpg", (4000, 2667))
-            dest = Path(tmp) / "05_WEB"
+            src = image(Path(tmp) / "03_JPG/IMG_1.jpg", (4000, 2667))
+            dest = Path(tmp) / "04_WEB"
             (web,) = noyau.exporter_web([src], dest, "Long côté 2048 px (site)", filigrane="Diogo")
             with Image.open(web) as im:
                 self.assertEqual(max(im.size), 2048)

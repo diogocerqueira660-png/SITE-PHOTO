@@ -1,47 +1,14 @@
 # Gestion Photos Auto — appli PC
 
-Petite appli de bureau (Windows / Mac) pour **organiser tes shootings de voitures**
-et suivre chaque photo de la carte SD jusqu'à la version finale :
+Appli de bureau pour **organiser tes shootings de voitures** et suivre chaque photo,
+de la carte SD jusqu'au JPG final :
 
 ```
-Carte SD → RAW → Lightroom → Photoshop → Final HD → Web / Instagram
+Carte SD → Tri → Lightroom (éclairage) → Photoshop → Lightroom (export JPG) → Web / Insta
 ```
 
-Elle travaille directement sur **tes dossiers** : rien n'est envoyé sur Internet, et tu
-peux continuer à tout ouvrir avec l'Explorateur, Lightroom ou Photoshop.
-
-## Ce qu'elle fait pour toi
-
-- **Un dossier propre par shooting**, créé en un clic :
-  ```
-  2026-09-26_Porsche-911-GT3_Lucas/
-      01_RAW/          ← fichiers de l'appareil
-      02_LIGHTROOM/    ← exports TIFF de Lightroom à retoucher
-      03_PHOTOSHOP/    ← tes PSD
-      04_FINAL/        ← JPG HD terminés
-      05_WEB/          ← versions site / Instagram
-  ```
-- **Import de la carte SD** : détecte la carte, copie seulement les nouvelles photos,
-  vérifie chaque copie, et peut renommer (`2026-09-26_Porsche-911-GT3_0001.CR3`).
-  Le RAW et le JPG d'une même prise gardent le même numéro.
-- **Tri rapide** au clavier : notes ★ (1 à 5), garder (P), rejeter (X), « à retoucher » (R),
-  plus un commentaire de retouche par photo (« enlever reflet portière… »).
-- **Suivi de chaque photo** : l'appli reconnaît toutes les versions d'une même photo
-  (`IMG_1234.CR3`, `IMG_1234-Edit.tif`, `IMG_1234-Edit.psd`, `IMG_1234.jpg`…) et affiche
-  des pastilles **RAW · LR · PS · FINAL · WEB** + un état :
-  À trier → Choisie → Développée → À retoucher → En retouche → Terminée.
-- **Passage vers Photoshop en un clic** (ou touche Entrée) : ouvre le bon fichier — le PSD
-  si tu as déjà commencé, sinon l'export Lightroom, sinon le RAW (Camera Raw).
-  Tu peux en ouvrir plusieurs d'un coup.
-- **Mise à jour automatique** : dès que Photoshop ou Lightroom enregistre un fichier dans
-  le shooting, l'appli le voit et met la photo à jour.
-- **« Ranger le vrac »** : les fichiers posés n'importe où dans le shooting sont
-  rangés dans le bon dossier (RAW, TIFF, PSD, JPG), après confirmation.
-- **Lien avec Lightroom** : les notes passent de l'appli à Lightroom et inversement
-  grâce aux fichiers `.xmp` (sans toucher à tes réglages Lightroom).
-- **Export web / Instagram** : depuis `04_FINAL`, crée des JPG allégés (2048 px, 1600 px,
-  Insta 4:5, carré, story) avec ta signature en filigrane, dans `05_WEB`.
-- **Avancement** de chaque shooting (% de photos terminées) dans la liste de gauche.
+Les étapes de retouche se **règlent dans ⚙ Paramètres** si tu travailles autrement.
+L'appli travaille directement sur **tes dossiers** : rien n'est envoyé sur Internet.
 
 ## Installation (Windows) — le plus simple
 
@@ -52,69 +19,106 @@ peux continuer à tout ouvrir avec l'Explorateur, Lightroom ou Photoshop.
    → **Exécuter quand même** (normal pour une appli perso non signée).
 4. Choisis le dossier où ranger tous tes shootings. C'est tout.
 
-Pas besoin d'installer Python. Le `.exe` est refabriqué automatiquement à chaque mise à jour de l'appli.
+Pas besoin d'installer Python. Le `.exe` est refabriqué automatiquement à chaque mise à jour.
 
-## Installation (Windows) — avec Python (pour modifier l'appli)
+## Comment ça marche
 
-1. Installe **Python 3.10 ou plus récent** depuis [python.org](https://www.python.org/downloads/)
-   (coche **« Add python.exe to PATH »** pendant l'installation).
-2. Double-clique sur **`lancer.bat`**. La première fois, il installe ce qu'il faut (Pillow).
-3. Au premier lancement, choisis le dossier où ranger tous tes shootings
-   (par ex. `D:\Photos Voitures`).
+### 1. Un shooting = un dossier bien rangé
 
-Photoshop et Lightroom Classic sont trouvés automatiquement. Sinon : **⚙ Réglages**.
+**＋ Nouveau shooting** → voiture, client, date. L'appli crée :
 
-**Pour avoir un vrai `.exe`** (sans avoir besoin de Python ensuite) : double-clique sur
-`creer_exe.bat`, puis utilise `dist\GestionPhotosAuto.exe` (tu peux l'épingler à la barre des tâches).
+```
+2026-09-26_Porsche-911-GT3_Lucas/
+    01_RAW/         ← photos de l'appareil
+    02_PHOTOSHOP/   ← TIF / PSD retouchés
+    03_JPG/         ← JPG finis (exportés de Lightroom)
+    04_WEB/         ← versions site / Instagram
+```
 
-Sur **Mac** : double-clique sur `lancer.command` (ou `python3 app.py` dans le Terminal).
+### 2. Import de la carte SD
 
-**Aperçus RAW** : l'appli lit l'aperçu JPEG caché dans tes RAW (CR2, CR3, NEF, ARW, RAF…).
-Pour un rendu encore plus fiable : `pip install rawpy` (déjà inclus dans le `.exe`).
+La carte est détectée toute seule. Seules les nouvelles photos sont copiées, chaque copie est
+vérifiée, et elles peuvent être renommées (`2026-09-26_Porsche-911-GT3_0001.CR3`).
 
-## Ta journée type
+### 3. Le tri
 
-1. **Nouveau shooting** → marque, modèle, client, date. → « Importer maintenant ? » → Oui.
-2. Carte SD branchée : elle est proposée d'office → **Importer**. Tu peux formater la carte après.
-3. **Tri** : flèches pour avancer, `P` garder, `X` rejeter, `1`-`5` les étoiles,
-   `Espace` pour voir en grand. Filtre **Afficher : Choisies (P)** pour ne garder que les bonnes.
-4. **Lightroom** : importe le dossier `01_RAW` dans Lightroom (Ajouter, sans déplacer).
-   Menu **Lightroom ▾ → écrire les notes** puis dans Lightroom
-   *Métadonnées → Lire les métadonnées à partir des fichiers* : tes étoiles et rejets y sont.
-   Exporte tes photos développées en TIFF dans `02_LIGHTROOM`
-   (ou fais « Modifier dans Photoshop », l'appli le détecte aussi).
-5. **Photoshop** : filtre *Développée* ou *À retoucher*, sélectionne, **Entrée**.
-   Enregistre ton PSD dans `03_PHOTOSHOP` et le JPG final dans `04_FINAL`.
-   Les pastilles passent au vert toutes seules.
-6. **Export web/Insta** → les images pour le site et les réseaux arrivent dans `05_WEB`.
+En haut, les **étapes** sont des boutons : *Toutes · À trier › Lightroom · éclairage ›
+Photoshop · retouche › Lightroom · export JPG · Terminées · Rejetées*, avec le nombre de
+photos à chaque étape. Clique sur une étape pour ne voir que ses photos.
 
-### Raccourcis
+Dans *À trier* : `P` garder, `X` rejeter, `1`–`5` étoiles, `Espace` pour voir en grand.
+Les photos gardées passent à la première étape.
+
+### 4. Envoyer plusieurs photos d'un coup
+
+- **Coche** les photos avec le **rond en haut à gauche** de chaque vignette
+  (ou `Ctrl`+clic, `Maj`+clic, bouton **Tout**).
+- Une barre apparaît en bas : **« Envoyer vers Photoshop ▶ »** (ou Lightroom, selon l'étape).
+  Toutes les photos cochées s'ouvrent d'un coup dans le bon logiciel.
+- **« ✓ Étape faite »** pour valider une étape à la main (ex. l'éclairage Lightroom).
+
+L'appli **voit toute seule** quand une étape est finie :
+
+| Étape (flux par défaut) | Finie quand… |
+|---|---|
+| Lightroom · éclairage | tu cliques « ✓ Étape faite » (ou tu envoies vers Photoshop) |
+| Photoshop · retouche | un **TIF / PSD** apparaît (à côté du RAW ou dans `02_PHOTOSHOP`) |
+| Lightroom · export JPG | un **JPG** apparaît dans `03_JPG` |
+
+Quand tu envoies vers l'export Lightroom, le chemin de `03_JPG` est **copié** : colle-le
+(`Ctrl+V`) dans la fenêtre d'export de Lightroom.
+
+**Astuce Lightroom → Photoshop** : le plus simple reste « Modifier dans Photoshop » depuis
+Lightroom (l'appli détecte le TIF créé). Si tu passes par l'appli, active dans Lightroom
+*Paramètres du catalogue → Métadonnées → « Inclure automatiquement les paramètres de
+développement dans le XMP »* : Photoshop ouvrira le RAW avec ton éclairage Lightroom.
+
+### 5. Export web / Instagram
+
+**↗ Export web / Insta** : depuis `03_JPG`, crée des JPG légers (2048 px, Insta 4:5, carré,
+story) avec ta signature, dans `04_WEB`.
+
+## Changer les étapes (⚙ Paramètres → Mon flux de travail)
+
+Choisis un modèle — *Lightroom → Photoshop → Lightroom* (par défaut), *Lightroom → Photoshop*,
+*Photoshop → Lightroom*, *Lightroom seulement* — ou fais le tien : renomme les étapes,
+change leur ordre (↑ ↓), ajoute-en, supprime-en. Pour chaque étape tu choisis le **logiciel**
+et **quand elle est finie** (je la coche moi-même / un TIF apparaît / un JPG apparaît).
+
+## Raccourcis
 
 | Touche | Action |
 |--------|--------|
+| clic sur le rond, `Ctrl`+clic, `Maj`+clic | Cocher plusieurs photos |
+| `Entrée` / double-clic | Envoyer à l'étape suivante |
+| `D` | Étape faite |
 | `1` … `5` / `0` | Note / sans note |
 | `P` / `X` / `U` | Garder / rejeter / annuler |
-| `R` | Marquer « à retoucher dans Photoshop » |
-| `Entrée` / double-clic | Ouvrir dans Photoshop |
-| `Espace` | Aperçu en grand (Échap pour fermer) |
-| Flèches, `Maj`+clic, `Ctrl`+clic, `Ctrl+A` | Naviguer / sélectionner |
+| `Espace` | Aperçu en grand (← → pour naviguer, Échap pour fermer) |
+| `Échap` | Tout décocher |
 | `F5` | Actualiser |
-| Clic droit | Menu (Lightroom, montrer dans le dossier, notes…) |
+| Clic droit | Menu (ouvrir dans Photoshop / Lightroom, montrer dans le dossier…) |
 
 ## Bon à savoir
 
-- Tes notes, choix et commentaires sont enregistrés dans `shooting.json` à l'intérieur
-  de chaque shooting : si tu déplaces ou sauvegardes le dossier, ils suivent.
-- Rien n'est jamais supprimé par l'appli. « Ranger le vrac » ne fait que déplacer,
-  et ne touche pas aux fichiers que Lightroom a créés à côté des RAW (pour qu'il ne les perde pas).
-- Un dossier déjà existant qui contient un sous-dossier `01_RAW` est reconnu comme shooting.
+- Notes, choix, étapes et commentaires sont dans `shooting.json`, dans chaque shooting :
+  si tu déplaces ou sauvegardes le dossier, ils suivent.
+- L'appli ne supprime jamais rien. « Ranger les fichiers en vrac » (menu •••) ne fait que
+  déplacer ce qui traîne à la racine du shooting, jamais les TIF créés par Lightroom.
+- Les shootings créés avec la première version (dossiers `02_LIGHTROOM`, `04_FINAL`…)
+  sont toujours reconnus.
+- Notes ↔ Lightroom : menu ••• → écrire / lire les notes XMP.
 
-## Pour les curieux
+## Installation avec Python (pour modifier l'appli)
+
+Python 3.10+ ([python.org](https://www.python.org/downloads/), cocher « Add python.exe to PATH »),
+puis double-clic sur `lancer.bat` (Windows) ou `lancer.command` (Mac).
+`creer_exe.bat` fabrique le `.exe` en local.
 
 ```
 app.py          → point d'entrée
-interface.py    → la fenêtre (tkinter)
-noyau.py        → shootings, import, suivi des versions, rangement, XMP, export web
+interface.py    → la fenêtre (CustomTkinter)
+noyau.py        → shootings, flux de travail, import, rangement, XMP, export web
 apercus.py      → miniatures (JPG, TIFF, PSD, RAW) avec cache
 reglages.py     → réglages, recherche de Photoshop / Lightroom
 tests/          → tests automatiques : python -m unittest discover -s tests

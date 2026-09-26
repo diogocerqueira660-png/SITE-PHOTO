@@ -31,8 +31,11 @@ jobs:
       - name: Tests
         run: python -m unittest discover -s tests -v
 
+      - name: L'interface démarre
+        run: python -c "import interface; app = interface.Application(); app.after(2000, app.quitter); app.mainloop(); print('ok')"
+
       - name: Fabriquer le .exe
-        run: python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto --collect-all rawpy app.py
+        run: python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto --collect-all rawpy --collect-all customtkinter app.py
 
       - name: Publier le téléchargement
         uses: softprops/action-gh-release@v2

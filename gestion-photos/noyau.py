@@ -1,4 +1,4 @@
-"""Cœur de l'appli : shootings, import, suivi des retouches, rangement, XMP, export.
+"""Cœur de l'appli : shootings, flux de travail, import, rangement, XMP, export.
 
 Aucune dépendance à l'interface graphique : tout ce fichier peut être testé seul.
 
@@ -7,10 +7,13 @@ Organisation d'un shooting sur le disque :
     2026-09-26_Porsche-911-GT3_Lucas/
         shooting.json      -> infos du shooting + notes / choix / commentaires des photos
         01_RAW/            -> fichiers de l'appareil (importés de la carte SD)
-        02_LIGHTROOM/      -> exports Lightroom (TIFF) à retoucher dans Photoshop
-        03_PHOTOSHOP/      -> fichiers de retouche Photoshop (PSD / PSB)
-        04_FINAL/          -> JPG haute définition terminés
-        05_WEB/            -> versions réduites pour le site / Instagram
+        02_PHOTOSHOP/      -> TIF / PSD retouchés dans Photoshop
+                              (ceux créés par Lightroom à côté des RAW comptent aussi)
+        03_JPG/            -> JPG terminés (exportés / « décompressés » par Lightroom)
+        04_WEB/            -> versions réduites pour le site / Instagram
+
+Le flux de travail (les étapes de retouche) est réglable : par défaut
+Lightroom (éclairage) -> Photoshop -> Lightroom (export JPG).
 """
 
 from __future__ import annotations
@@ -23,19 +26,23 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
 
-# --------------------------------------------------------------------------- étapes
+# --------------------------------------------------------------------------- dossiers
 
-ETAPES = [
+DOSSIERS = [
     ("RAW", "01_RAW", "RAW"),
-    ("LR", "02_LIGHTROOM", "Lightroom"),
-    ("PS", "03_PHOTOSHOP", "Photoshop"),
-    ("FINAL", "04_FINAL", "Final HD"),
-    ("WEB", "05_WEB", "Web"),
+    ("TIF", "02_PHOTOSHOP", "TIF / PSD"),
+    ("JPG", "03_JPG", "JPG final"),
+    ("WEB", "04_WEB", "Web"),
 ]
-CODES_ETAPES = [e[0] for e in ETAPES]
-DOSSIER_ETAPE = {code: dossier for code, dossier, _ in ETAPES}
-NOM_ETAPE = {code: nom for code, _, nom in ETAPES}
-ETAPE_DU_DOSSIER = {dossier.lower(): code for code, dossier, _ in ETAPES}
+CODES_DOSSIERS = [d[0] for d in DOSSIERS]
+DOSSIER_ETAPE = {code: dossier for code, dossier, _ in DOSSIERS}
+NOM_DOSSIER = {code: nom for code, _, nom in DOSSIERS}
+# Anciens noms de dossiers (premières versions de l'appli) toujours reconnus
+ANCIENS_DOSSIERS = {"TIF": ["02_LIGHTROOM", "03_PHOTOSHOP"], "JPG": ["04_FINAL"], "WEB": ["05_WEB"]}
+DOSSIER_VERS_CODE = {d.lower(): c for c, d, _ in DOSSIERS}
+for _code, _anciens in ANCIENS_DOSSIERS.items():
+    for _a in _anciens:
+        DOSSIER_VERS_CODE[_a.lower()] = _code
 
 FICHIER_SHOOTING = "shooting.json"
 
@@ -51,7 +58,7 @@ EXT_ANNEXES = {".xmp"}  # fichiers « compagnons » qui suivent le RAW
 PICK, REJET, AUCUN = "pick", "rejet", ""
 
 # Suffixes ajoutés par Lightroom / Photoshop / l'utilisateur, retirés pour
-# retrouver la photo d'origine : IMG_1234-Edit-2.psd -> IMG_1234
+# retrouver la photo d'origine : IMG_1234-Edit-2.tif -> IMG_1234
 _SUFFIXES = r"edit|edited|modifier|modifi[ée]|modif|retouche|retouch[ée]?|ps|lr|final|web|hd|insta|copy|copie"
 _RE_SUFFIXE = re.compile(rf"(?:[-_ ](?:{_SUFFIXES})(?:[-_ ]?\d{{1,2}})?)$", re.IGNORECASE)
 _RE_COPIE = re.compile(r"(?: \(\d+\)| - copie| copie| copy)$", re.IGNORECASE)
@@ -74,97 +81,201 @@ def nom_de_base(nom_fichier: str) -> str:
 
 
 def etape_du_fichier(chemin: Path, racine: Path) -> str | None:
-    """Étape d'un fichier selon le dossier où il se trouve (et son type)."""
+    """Type de version d'un fichier : RAW, TIF (passé dans Photoshop), JPG final ou WEB."""
     ext = chemin.suffix.lower()
-    if ext not in EXT_IMAGES:
+    if ext in EXT_RAW:
+        return "RAW"
+    if ext in EXT_TIFF | EXT_PSD:
+        return "TIF"
+    if ext not in EXT_JPG:
         return None
     try:
         premier = chemin.relative_to(racine).parts[0].lower()
     except (ValueError, IndexError):
         premier = ""
-    etape = ETAPE_DU_DOSSIER.get(premier)
-    if etape == "RAW" or etape is None:
-        # Lightroom « Modifier dans Photoshop » crée le TIFF/PSD à côté du RAW.
-        if ext in EXT_PSD:
-            return "PS"
-        if ext in EXT_TIFF:
-            return "LR"
-        if etape is None:
-            return "RAW" if ext in EXT_RAW else None  # vrac à la racine : à ranger
-    return etape
+    code = DOSSIER_VERS_CODE.get(premier)
+    if code == "TIF":
+        return "JPG"  # JPG enregistré à côté des TIF : c'est une version finie
+    return code  # RAW (JPG de l'appareil), JPG, WEB, ou None si en vrac
+
+
+# --------------------------------------------------------------------------- flux de travail
+
+LOGICIELS = {"lightroom": "Lightroom", "photoshop": "Photoshop", "aucun": "Aucun logiciel"}
+PREUVES = {
+    "manuel": "Je la coche moi-même",
+    "tif": "Un TIF / PSD apparaît",
+    "jpg": "Un JPG apparaît dans 03_JPG",
+}
+
+
+@dataclass
+class Etape:
+    id: str
+    nom: str
+    logiciel: str = "aucun"
+    preuve: str = "manuel"
+
+    def en_dict(self) -> dict:
+        return {"id": self.id, "nom": self.nom, "logiciel": self.logiciel, "preuve": self.preuve}
+
+
+MODELES_FLUX = {
+    "Lightroom → Photoshop → Lightroom": [
+        Etape("lr1", "Lightroom · éclairage", "lightroom", "manuel"),
+        Etape("ps", "Photoshop · retouche", "photoshop", "tif"),
+        Etape("lr2", "Lightroom · export JPG", "lightroom", "jpg"),
+    ],
+    "Lightroom → Photoshop": [
+        Etape("lr1", "Lightroom · éclairage", "lightroom", "manuel"),
+        Etape("ps", "Photoshop · retouche + JPG", "photoshop", "jpg"),
+    ],
+    "Photoshop → Lightroom": [
+        Etape("ps", "Photoshop · retouche", "photoshop", "tif"),
+        Etape("lr2", "Lightroom · export JPG", "lightroom", "jpg"),
+    ],
+    "Lightroom seulement": [
+        Etape("lr", "Lightroom · retouche + export", "lightroom", "jpg"),
+    ],
+}
+FLUX_PAR_DEFAUT = "Lightroom → Photoshop → Lightroom"
+
+
+def flux_depuis(donnees) -> list[Etape]:
+    """Flux enregistré dans les réglages -> liste d'étapes (flux par défaut si vide/invalide)."""
+    etapes = []
+    for d in donnees or []:
+        try:
+            e = Etape(str(d["id"]), str(d["nom"]).strip() or "Étape",
+                      d.get("logiciel", "aucun"), d.get("preuve", "manuel"))
+        except (KeyError, TypeError, AttributeError):
+            continue
+        if e.logiciel not in LOGICIELS:
+            e.logiciel = "aucun"
+        if e.preuve not in PREUVES:
+            e.preuve = "manuel"
+        etapes.append(e)
+    return etapes or [Etape(**e.en_dict()) for e in MODELES_FLUX[FLUX_PAR_DEFAUT]]
+
+
+def nouvel_id_etape(flux: list[Etape]) -> str:
+    pris = {e.id for e in flux}
+    i = 1
+    while f"e{i}" in pris:
+        i += 1
+    return f"e{i}"
 
 
 # --------------------------------------------------------------------------- modèle
 
+A_TRIER, TERMINEE, REJETEE = "À trier", "Terminée", "Rejetée"
+
+
 @dataclass
 class Photo:
     cle: str
-    fichiers: dict[str, list[Path]] = field(default_factory=dict)  # étape -> fichiers
+    fichiers: dict[str, list[Path]] = field(default_factory=dict)  # RAW/TIF/JPG/WEB -> fichiers
     note: int = 0
     choix: str = AUCUN
-    a_retoucher: bool = False  # à passer dans Photoshop
+    faites: set[str] = field(default_factory=set)  # étapes cochées à la main
+    envoyee: str = ""                              # étape en cours dans un logiciel
     commentaire: str = ""
 
     @property
-    def etapes(self) -> list[str]:
-        return [e for e in CODES_ETAPES if self.fichiers.get(e)]
+    def versions(self) -> list[str]:
+        return [c for c in CODES_DOSSIERS if self.fichiers.get(c)]
 
     @property
     def nom(self) -> str:
-        """Nom affiché : celui du fichier le plus « en amont »."""
-        for e in CODES_ETAPES:
-            if self.fichiers.get(e):
-                return self.fichiers[e][0].name
+        for c in CODES_DOSSIERS:
+            if self.fichiers.get(c):
+                return self.fichiers[c][0].name
         return self.cle
 
-    def premier(self, etape: str) -> Path | None:
-        f = self.fichiers.get(etape)
-        return f[0] if f else None
-
-    def dernier(self, etape: str) -> Path | None:
-        f = self.fichiers.get(etape)
+    def dernier(self, code: str) -> Path | None:
+        f = self.fichiers.get(code)
         return max(f, key=lambda p: p.stat().st_mtime) if f else None
 
-    @property
-    def etat(self) -> str:
-        if self.choix == REJET:
-            return "Rejetée"
-        if "FINAL" in self.fichiers or "WEB" in self.fichiers:
-            return "Terminée"
-        if "PS" in self.fichiers:
-            return "En retouche"
-        if self.a_retoucher:
-            return "À retoucher"
-        if "LR" in self.fichiers:
-            return "Développée"
-        if self.choix == PICK:
-            return "Choisie"
-        return "À trier"
-
-    def fichier_pour_photoshop(self) -> Path | None:
-        """Le meilleur fichier à ouvrir dans Photoshop : PSD en cours > export LR > RAW."""
-        for etape in ("PS", "LR"):
-            f = self.dernier(etape)
-            if f:
-                return f
+    def raw(self) -> Path | None:
         raws = self.fichiers.get("RAW", [])
-        vrais_raw = [f for f in raws if f.suffix.lower() in EXT_RAW]
-        if raws:
-            return (vrais_raw or raws)[0]  # le RAW plutôt que le JPG de l'appareil
-        return self.dernier("FINAL")
+        vrais = [f for f in raws if f.suffix.lower() in EXT_RAW]
+        return (vrais or raws or [None])[0]  # le RAW plutôt que le JPG de l'appareil
+
+    def _preuve(self, preuve: str) -> bool:
+        if preuve == "tif":
+            return bool(self.fichiers.get("TIF"))
+        if preuve == "jpg":
+            return bool(self.fichiers.get("JPG") or self.fichiers.get("WEB"))
+        return False
+
+    def etapes_faites(self, flux: list[Etape]) -> list[bool]:
+        """Une étape est faite si elle est cochée ou si son fichier existe.
+        Le flux est linéaire : si une étape est faite, celles d'avant aussi."""
+        faites = [e.id in self.faites or self._preuve(e.preuve) for e in flux]
+        if self.fichiers.get("TIF"):
+            # un TIF/PSD existe : tout ce qui précède Photoshop est forcément fait
+            ps = next((i for i, e in enumerate(flux) if e.logiciel == "photoshop"), 0)
+            if ps > 0:
+                faites[ps - 1] = True
+        derniere = max((i for i, f in enumerate(faites) if f), default=-1)
+        return [i <= derniere for i in range(len(flux))]
+
+    def prochaine(self, flux: list[Etape]) -> Etape | None:
+        for e, faite in zip(flux, self.etapes_faites(flux)):
+            if not faite:
+                return e
+        return None
+
+    def colonne(self, flux: list[Etape]) -> str:
+        """Où en est la photo : À trier, id d'une étape, Terminée ou Rejetée."""
+        if self.choix == REJET:
+            return REJETEE
+        faites = self.etapes_faites(flux)
+        if all(faites):
+            return TERMINEE
+        if self.choix != PICK and not any(faites) and not self.envoyee:
+            return A_TRIER
+        return self.prochaine(flux).id
+
+    def etat(self, flux: list[Etape]) -> str:
+        col = self.colonne(flux)
+        if col in (A_TRIER, TERMINEE, REJETEE):
+            return col
+        e = self.prochaine(flux)
+        if self.envoyee == e.id and e.logiciel != "aucun":
+            return f"Chez {LOGICIELS[e.logiciel]}"
+        return e.nom
+
+    def fichier_a_ouvrir(self) -> Path | None:
+        """Le meilleur fichier à ouvrir : la version Photoshop (TIF/PSD) si elle existe, sinon le RAW."""
+        return self.dernier("TIF") or self.raw() or self.dernier("JPG")
+
+    def envoyer(self, flux: list[Etape], etape: Etape):
+        """La photo part à cette étape : celles d'avant sont considérées comme faites."""
+        for e in flux:
+            if e.id == etape.id:
+                break
+            self.faites.add(e.id)
+        self.envoyee = etape.id
+
+    def marquer_faite(self, flux: list[Etape]):
+        """Coche l'étape en cours (et donc celles d'avant)."""
+        e = self.prochaine(flux)
+        if e:
+            self.envoyer(flux, e)
+            self.faites.add(e.id)
+            self.envoyee = ""
+        if self.choix == AUCUN:
+            self.choix = PICK
 
     def fichier_apercu(self) -> Path | None:
         """Fichier le plus abouti, pour la miniature."""
-        for etape in ("FINAL", "WEB", "LR", "RAW", "PS"):
-            fichiers = self.fichiers.get(etape)
+        for code in ("JPG", "WEB", "TIF", "RAW"):
+            fichiers = self.fichiers.get(code)
             if fichiers:
-                # un JPG caméra à côté du RAW s'affiche plus vite que le RAW
                 jpg = [f for f in fichiers if f.suffix.lower() in EXT_JPG]
-                return (jpg or fichiers)[0]
+                return (jpg or fichiers)[0]  # un JPG s'affiche plus vite qu'un RAW
         return None
-
-
-ETATS = ["À trier", "Choisie", "Développée", "À retoucher", "En retouche", "Terminée", "Rejetée"]
 
 
 def nom_dossier_shooting(jour: date, voiture: str, client: str = "") -> str:
@@ -190,7 +301,7 @@ class Shooting:
         dossier = Path(bibliotheque) / nom_dossier_shooting(jour, voiture, client)
         if dossier.exists() and (dossier / FICHIER_SHOOTING).exists():
             raise FileExistsError(f"Le shooting existe déjà : {dossier.name}")
-        for _, sous_dossier, _ in ETAPES:
+        for _, sous_dossier, _ in DOSSIERS:
             (dossier / sous_dossier).mkdir(parents=True, exist_ok=True)
         s = cls(dossier)
         s.infos.update({"voiture": voiture.strip(), "client": client.strip(),
@@ -206,8 +317,15 @@ class Shooting:
     def nom(self) -> str:
         return self.dossier.name
 
-    def chemin_etape(self, etape: str) -> Path:
-        return self.dossier / DOSSIER_ETAPE[etape]
+    def chemin_etape(self, code: str) -> Path:
+        """Dossier d'un type de fichier (reprend un ancien nom de dossier s'il existe)."""
+        nouveau = self.dossier / DOSSIER_ETAPE[code]
+        if nouveau.is_dir():
+            return nouveau
+        for ancien in ANCIENS_DOSSIERS.get(code, []):
+            if (self.dossier / ancien).is_dir():
+                return self.dossier / ancien
+        return nouveau
 
     def _charger_meta(self):
         f = self.dossier / FICHIER_SHOOTING
@@ -222,7 +340,7 @@ class Shooting:
     def enregistrer(self):
         for p in self.photos:
             m = {k: v for k, v in (("note", p.note), ("choix", p.choix),
-                                   ("a_retoucher", p.a_retoucher),
+                                   ("faites", sorted(p.faites)), ("envoyee", p.envoyee),
                                    ("commentaire", p.commentaire)) if v}
             if m:
                 self.meta[p.cle] = m
@@ -241,66 +359,57 @@ class Shooting:
                 continue
             if any(part.startswith(".") for part in chemin.relative_to(self.dossier).parts):
                 continue
-            etape = etape_du_fichier(chemin, self.dossier)
-            if etape:
-                yield etape, chemin
+            code = etape_du_fichier(chemin, self.dossier)
+            if code:
+                yield code, chemin
 
     def analyser(self) -> list[Photo]:
         par_cle: dict[str, Photo] = {}
-        for etape, chemin in self.fichiers_images():
+        for code, chemin in self.fichiers_images():
             cle = cle_photo(chemin.name)
             photo = par_cle.setdefault(cle, Photo(cle))
-            photo.fichiers.setdefault(etape, []).append(chemin)
+            photo.fichiers.setdefault(code, []).append(chemin)
         for cle, photo in par_cle.items():
             m = self.meta.get(cle, {})
             photo.note = int(m.get("note", 0))
             photo.choix = m.get("choix", AUCUN)
-            photo.a_retoucher = bool(m.get("a_retoucher", False))
+            photo.faites = set(m.get("faites", []))
+            photo.envoyee = m.get("envoyee", "")
             photo.commentaire = m.get("commentaire", "")
         self.photos = sorted(par_cle.values(), key=lambda p: p.cle)
         return self.photos
 
-    def resume(self) -> dict:
+    def resume(self, flux: list[Etape]) -> dict:
         if not self.photos:
             self.analyser()
-        compte = {e: 0 for e in ETATS}
+        colonnes = {A_TRIER: 0, **{e.id: 0 for e in flux}, TERMINEE: 0, REJETEE: 0}
         for p in self.photos:
-            compte[p.etat] += 1
-        gardees = [p for p in self.photos if p.choix != REJET]
-        choisies = [p for p in gardees if p.choix == PICK or p.a_retoucher or p.etat in
-                    ("Développée", "En retouche", "Terminée")]
-        base = choisies or gardees
-        finies = sum(1 for p in base if p.etat == "Terminée")
-        return {"total": len(self.photos), "etats": compte, "objectif": len(base),
+            colonnes[p.colonne(flux)] += 1
+        en_cours = sum(v for k, v in colonnes.items() if k not in (A_TRIER, REJETEE))
+        objectif = en_cours or (len(self.photos) - colonnes[REJETEE])
+        finies = colonnes[TERMINEE]
+        return {"total": len(self.photos), "colonnes": colonnes, "objectif": objectif,
                 "terminees": finies,
-                "progression": round(100 * finies / len(base)) if base else 0}
+                "progression": round(100 * finies / objectif) if objectif else 0}
 
     def a_ranger(self) -> list[tuple[Path, Path]]:
-        """Fichiers en vrac (à la racine, ou PSD/JPG hors de leur dossier) -> destination.
+        """Fichiers posés en vrac à la racine du shooting -> dossier où ils vont.
 
-        Les TIFF/PSD à côté des RAW (créés par Lightroom) ne sont pas déplacés :
+        Les TIF/PSD créés par Lightroom à côté des RAW ne sont jamais déplacés :
         Lightroom perdrait leur trace dans son catalogue.
         """
         mouvements = []
         for chemin in sorted(self.dossier.iterdir()):
-            if chemin.is_file() and chemin.suffix.lower() in EXT_IMAGES | EXT_ANNEXES:
-                ext = chemin.suffix.lower()
-                if ext in EXT_RAW or ext in EXT_ANNEXES:
-                    etape = "RAW"
-                elif ext in EXT_TIFF:
-                    etape = "LR"
-                elif ext in EXT_PSD:
-                    etape = "PS"
-                else:
-                    etape = "FINAL"
-                mouvements.append((chemin, self.chemin_etape(etape) / chemin.name))
-        # PSD enregistrés par Photoshop dans le dossier de l'export Lightroom
-        for dossier_source in ("LR", "FINAL", "WEB"):
-            d = self.chemin_etape(dossier_source)
-            if d.is_dir():
-                for chemin in sorted(d.iterdir()):
-                    if chemin.is_file() and chemin.suffix.lower() in EXT_PSD:
-                        mouvements.append((chemin, self.chemin_etape("PS") / chemin.name))
+            ext = chemin.suffix.lower()
+            if not chemin.is_file() or ext not in EXT_IMAGES | EXT_ANNEXES:
+                continue
+            if ext in EXT_RAW or ext in EXT_ANNEXES:
+                code = "RAW"
+            elif ext in EXT_TIFF | EXT_PSD:
+                code = "TIF"
+            else:
+                code = "JPG"
+            mouvements.append((chemin, self.chemin_etape(code) / chemin.name))
         return mouvements
 
     def ranger(self, mouvements: list[tuple[Path, Path]] | None = None) -> int:
@@ -588,10 +697,10 @@ def _filigrane(image, texte, ImageDraw, ImageFont):
 
 
 def sources_pour_export(photos: list[Photo]) -> list[Path]:
-    """Pour chaque photo : le JPG/TIFF final, sinon rien (il faut d'abord finir la retouche)."""
+    """Pour chaque photo : son JPG final (dossier 03_JPG), sinon rien."""
     sources = []
     for p in photos:
-        finals = [f for f in p.fichiers.get("FINAL", []) if f.suffix.lower() not in EXT_PSD]
+        finals = p.fichiers.get("JPG", [])
         if finals:
             sources.append(max(finals, key=lambda f: f.stat().st_mtime))
     return sources

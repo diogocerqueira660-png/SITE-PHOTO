@@ -21,6 +21,8 @@ DEFAUTS = {
     "filigrane": "Diogo Car Photography",
     "qualite_web": 90,
     "taille_miniatures": 200,
+    "modele_flux": "Lightroom → Photoshop → Lightroom",
+    "flux": [],  # vide = modèle ci-dessus
 }
 
 
@@ -80,10 +82,8 @@ def trouver_logiciel(nom: str) -> str:
 
 
 def ouvrir_avec(logiciel: str, fichiers: list[Path]):
-    """Ouvre des fichiers dans un logiciel (Photoshop, Lightroom…)."""
+    """Ouvre des fichiers dans un logiciel (Photoshop, Lightroom…), ou juste le logiciel."""
     fichiers = [str(f) for f in fichiers]
-    if not fichiers:
-        return
     if not logiciel:
         raise FileNotFoundError("Chemin du logiciel non renseigné (voir Réglages).")
     if MAC:
