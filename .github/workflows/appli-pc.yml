@@ -1,0 +1,49 @@
+# Fabrique automatiquement GestionPhotosAuto.exe (appli PC Windows)
+# et le met en téléchargement dans « Releases » du dépôt.
+name: Appli PC Windows
+
+on:
+  push:
+    paths:
+      - "gestion-photos/**"
+      - ".github/workflows/appli-pc.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  exe:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: gestion-photos
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Installer les dépendances
+        run: python -m pip install -r requirements.txt rawpy pyinstaller
+
+      - name: Tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Fabriquer le .exe
+        run: python -m PyInstaller --noconfirm --onefile --windowed --name GestionPhotosAuto --collect-all rawpy app.py
+
+      - name: Publier le téléchargement
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: appli-pc
+          target_commitish: ${{ github.sha }}
+          name: Gestion Photos Auto (appli PC Windows)
+          make_latest: true
+          files: gestion-photos/dist/GestionPhotosAuto.exe
+          body: |
+            **Télécharger :** clique sur `GestionPhotosAuto.exe` ci-dessous, puis double-clique dessus.
+
+            Si Windows affiche « Windows a protégé votre ordinateur » :
+            clique sur **Informations complémentaires** puis **Exécuter quand même**.
