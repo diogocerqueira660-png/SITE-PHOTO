@@ -59,7 +59,7 @@ PICK, REJET, AUCUN = "pick", "rejet", ""
 
 # Suffixes ajoutés par Lightroom / Photoshop / l'utilisateur, retirés pour
 # retrouver la photo d'origine : IMG_1234-Edit-2.tif -> IMG_1234
-_SUFFIXES = r"edit|edited|modifier|modifi[ée]|modif|retouche|retouch[ée]?|ps|lr|final|web|hd|insta|copy|copie"
+_SUFFIXES = r"edit|edited|modifier|modifi[ée]|modif|retouche|retouch[ée]?|ps|lr|final|web|hd|insta|net|copy|copie"
 _RE_SUFFIXE = re.compile(rf"(?:[-_ ](?:{_SUFFIXES})(?:[-_ ]?\d{{1,2}})?)$", re.IGNORECASE)
 _RE_COPIE = re.compile(r"(?: \(\d+\)| - copie| copie| copy)$", re.IGNORECASE)
 
@@ -738,10 +738,75 @@ def _filigrane(image, texte, ImageDraw, ImageFont):
 
 
 def sources_pour_export(photos: list[Photo]) -> list[Path]:
-    """Pour chaque photo : son JPG final (dossier 03_JPG), sinon rien."""
+    """Pour chaque photo : son JPG final (dossier 03_JPG) — la version « _net » si elle existe."""
     sources = []
     for p in photos:
         finals = p.fichiers.get("JPG", [])
-        if finals:
-            sources.append(max(finals, key=lambda f: f.stat().st_mtime))
+        nettes = [f for f in finals if Path(f).stem.lower().endswith("_net")]
+        if nettes or finals:
+            sources.append(max(nettes or finals, key=lambda f: f.stat().st_mtime))
     return sources
+
+
+# --------------------------------------------------------------------------- netteté
+
+NIVEAUX_NETTETE = {
+    # rayon (px), intensité (%), seuil : accentuation des détails fins
+    "Légère": (0.8, 70, 2),
+    "Moyenne": (1.2, 110, 2),
+    "Forte": (1.8, 160, 3),
+}
+
+
+def accentuer(image, niveau: str = "Moyenne"):
+    """Netteté sur la luminosité seulement : couleurs et éclairage restent identiques.
+
+    On accentue une copie en niveaux de gris (les détails), puis on ajoute le même
+    gain de détail aux trois canaux R, V, B : les écarts entre canaux — donc la
+    teinte et la saturation — ne bougent pas. L'échelle du masque suit la taille
+    de la photo pour un rendu comparable en 24 ou 45 Mpx.
+    """
+    from PIL import Image, ImageChops, ImageFilter
+
+    rayon, intensite, seuil = NIVEAUX_NETTETE[niveau]
+    rayon *= max(1.0, max(image.size) / 4000)
+    rgb = image.convert("RGB")
+    lum = rgb.convert("L")
+    nette = lum.filter(ImageFilter.UnsharpMask(radius=rayon, percent=intensite, threshold=seuil))
+    plus = ImageChops.subtract(nette, lum)    # détails à éclaircir
+    moins = ImageChops.subtract(lum, nette)   # détails à assombrir
+    canaux = [ImageChops.subtract(ImageChops.add(c, plus), moins) for c in rgb.split()]
+    return Image.merge("RGB", canaux)
+
+
+def nom_nettete(source: Path) -> Path:
+    return source.with_name(f"{nom_de_base(source.name)}_net.jpg")
+
+
+def ameliorer_nettete(sources: list[Path], niveau: str = "Moyenne", qualite: int = 96,
+                      progression=None) -> list[Path]:
+    """Crée une version plus nette de chaque JPG final, à côté : IMG_1234_net.jpg.
+
+    L'original n'est jamais modifié. Le profil couleur (ICC) et les EXIF sont
+    conservés, et le JPG est enregistré sans sous-échantillonnage des couleurs.
+    """
+    from PIL import Image, ImageOps
+
+    crees = []
+    for i, source in enumerate(sources):
+        with Image.open(source) as im:
+            icc = im.info.get("icc_profile")
+            exif = im.info.get("exif")
+            im = ImageOps.exif_transpose(im) if not exif else im
+            net = accentuer(im, niveau)
+        dest = nom_nettete(source)
+        options = {"quality": qualite, "subsampling": 0, "optimize": True}
+        if icc:
+            options["icc_profile"] = icc
+        if exif:
+            options["exif"] = exif
+        net.save(dest, "JPEG", **options)
+        crees.append(dest)
+        if progression:
+            progression(i + 1, len(sources), source.name)
+    return crees

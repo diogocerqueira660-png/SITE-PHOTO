@@ -283,6 +283,37 @@ class TestExportWeb(unittest.TestCase):
             self.assertEqual(noyau.cle_photo(insta.name), "img_1")
 
 
+class TestNettete(unittest.TestCase):
+    def test_details_plus_nets_couleurs_identiques(self):
+        from PIL import Image, ImageDraw, ImageFilter, ImageStat
+        with tempfile.TemporaryDirectory() as tmp:
+            im = Image.new("RGB", (800, 600), (200, 30, 20))  # carrosserie rouge
+            d = ImageDraw.Draw(im)
+            for x in range(0, 800, 40):
+                d.line([(x, 0), (x, 600)], fill=(240, 240, 240), width=4)
+            im = im.filter(ImageFilter.GaussianBlur(1.5))  # photo un peu molle
+            src = Path(tmp) / "03_JPG/IMG_1.jpg"
+            src.parent.mkdir()
+            im.save(src, quality=97, subsampling=0, icc_profile=b"profil-test")
+            (dest,) = noyau.ameliorer_nettete([src], "Moyenne")
+            self.assertEqual(dest.name, "IMG_1_net.jpg")
+            self.assertEqual(noyau.cle_photo(dest.name), "img_1")
+            with Image.open(src) as a, Image.open(dest) as b:
+                self.assertEqual(b.info.get("icc_profile"), b"profil-test")
+                # plus de détails : les bords sont plus marqués
+                bords = lambda x: ImageStat.Stat(x.convert("L").filter(ImageFilter.FIND_EDGES)).mean[0]
+                self.assertGreater(bords(b), bords(a) * 1.1)
+                # teinte (canaux couleur Cb / Cr) inchangée, luminosité moyenne quasi inchangée
+                ya, cba, cra = ImageStat.Stat(a.convert("YCbCr")).mean
+                yb, cbb, crb = ImageStat.Stat(b.convert("YCbCr")).mean
+                self.assertLess(abs(cba - cbb), 0.5)
+                self.assertLess(abs(cra - crb), 0.5)
+                self.assertLess(abs(ya - yb), 3)
+            # l'export web prend la version nette
+            p = noyau.Photo("img_1", {"JPG": [src, dest]})
+            self.assertEqual(noyau.sources_pour_export([p]), [dest])
+
+
 class TestApercus(unittest.TestCase):
     def test_jpeg_cache_dans_un_raw(self):
         import io

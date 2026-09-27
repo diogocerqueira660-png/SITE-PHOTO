@@ -531,7 +531,8 @@ class Application(ctk.CTk):
         else:
             texte = {
                 A_TRIER: "Clique « ▶ Trier les photos » pour les voir en grand une par une : Garder ou Supprimer.",
-                TERMINEE: "Photos finies (JPG dans 03_JPG). Prêtes pour l'export web / Instagram.",
+                TERMINEE: "Photos finies (JPG dans 03_JPG). Menu ••• → ✨ Netteté HD pour plus de détails, "
+                          "puis Export web / Insta.",
                 REJETEE: "Photos écartées. U pour les remettre dans le tri.",
             }.get(f, "Coche les photos avec le rond en haut à gauche, puis envoie-les à l'étape suivante. "
                      "Espace = voir en grand.")
@@ -1048,6 +1049,7 @@ class Application(ctk.CTk):
     def _menu_plus(self):
         m = menu_sombre(self)
         m.add_command(label="📂  Ouvrir le dossier du shooting", command=self.ouvrir_dossier_shooting)
+        m.add_command(label="✨  Netteté HD (photos terminées)", command=self.nettete)
         m.add_command(label="🧹  Ranger les fichiers en vrac", command=self.ranger)
         m.add_separator()
         m.add_command(label="Lightroom ← écrire mes notes (XMP)", command=self.ecrire_xmp)
@@ -1072,6 +1074,7 @@ class Application(ctk.CTk):
         m.add_command(label="Ouvrir dans Photoshop", command=lambda: self.ouvrir_avec_logiciel("photoshop"))
         m.add_command(label="Ouvrir dans Lightroom", command=lambda: self.ouvrir_avec_logiciel("lightroom"))
         m.add_command(label="Voir en grand", command=self.grand_apercu)
+        m.add_command(label="✨  Netteté HD", command=self.nettete)
         m.add_command(label="Montrer dans le dossier", command=self._montrer)
         m.add_separator()
         m.add_command(label="Garder (P)", command=lambda: self.choisir(PICK))
@@ -1145,6 +1148,10 @@ class Application(ctk.CTk):
 
     def exporter_web(self):
         FenetreExport(self)
+
+    def nettete(self):
+        if self.shooting:
+            FenetreNettete(self)
 
     def trier(self):
         """Ouvre le tri plein écran : d'abord les photos pas encore triées, sinon toutes."""
@@ -2053,6 +2060,123 @@ class FenetreExport(Fenetre):
             try:
                 crees = noyau.exporter_web(sources, dossier, progression=progression, **args)
                 self.after(0, lambda: self._fini(f"✓  {len(crees)} image(s) créée(s) dans {dossier.name}."))
+            except Exception as e:
+                self.after(0, lambda e=e: self._fini(f"Erreur : {e}"))
+
+        threading.Thread(target=travail, daemon=True).start()
+
+    def _fini(self, texte):
+        if self.winfo_exists():
+            self.info.configure(text=texte)
+            self.btn.configure(state="normal")
+        self.app.recharger()
+
+
+class FenetreNettete(Fenetre):
+    """Netteté HD : détails plus nets, couleurs et éclairage inchangés (version _net à côté)."""
+
+    def __init__(self, app: Application):
+        super().__init__(app, "✨  Netteté HD",
+                         "Rend les détails plus nets sans toucher aux couleurs ni à l'éclairage. "
+                         "Tes JPG d'origine ne sont pas modifiés : une copie « _net » est créée à côté.")
+        self.sources_sel = noyau.sources_pour_export(app._selectionnees())
+        self.sources_tout = noyau.sources_pour_export(app.shooting.photos)
+        # on part des JPG d'origine, pas des versions déjà accentuées
+        self.sources_sel = [self._origine(f) for f in self.sources_sel]
+        self.sources_tout = [self._origine(f) for f in self.sources_tout]
+        self.var_quoi = ctk.StringVar(value="sel" if self.sources_sel else "tout")
+        ligne = ctk.CTkFrame(self.corps, fg_color="transparent")
+        ligne.pack(fill="x", pady=(16, 0))
+        for val, texte in (("sel", f"Photos cochées ({len(self.sources_sel)} terminée(s))"),
+                           ("tout", f"Toutes les terminées ({len(self.sources_tout)})")):
+            ctk.CTkRadioButton(ligne, text=texte, value=val, variable=self.var_quoi, font=police(13),
+                               text_color=TEXTE, fg_color=ACCENT, hover_color=ACCENT_SURVOL, border_color=PALE,
+                               command=self._apercu).pack(side="left", padx=(0, 20))
+        niv = ctk.CTkFrame(self.corps, fg_color="transparent")
+        niv.pack(fill="x", pady=(16, 0))
+        ctk.CTkLabel(niv, text="Intensité", font=police(13, True), text_color=DOUX).pack(side="left", padx=(0, 10))
+        self.var_niveau = ctk.StringVar(value="Moyenne")
+        ctk.CTkSegmentedButton(niv, values=list(noyau.NIVEAUX_NETTETE), variable=self.var_niveau,
+                               font=police(13), selected_color=ACCENT, selected_hover_color=ACCENT_SURVOL,
+                               unselected_color=CHAMP, fg_color=CHAMP,
+                               command=lambda v: self._apercu()).pack(side="left")
+
+        ctk.CTkLabel(self.corps, text="APERÇU À 100 %  (centre de la photo)", font=police(12, True),
+                     text_color=DOUX, anchor="w").pack(fill="x", pady=(18, 6))
+        cadres = ctk.CTkFrame(self.corps, fg_color="transparent")
+        cadres.pack()
+        self.lbl_avant, self.lbl_apres = [], []
+        for titre in ("Avant", "Après"):
+            bloc = ctk.CTkFrame(cadres, fg_color=CARTE, corner_radius=12)
+            bloc.pack(side="left", padx=6)
+            ctk.CTkLabel(bloc, text=titre, font=police(12, True), text_color=DOUX).pack(pady=(6, 2))
+            lbl = ctk.CTkLabel(bloc, text="…", width=320, height=240, text_color=PALE)
+            lbl.pack(padx=8, pady=(0, 8))
+            (self.lbl_avant if titre == "Avant" else self.lbl_apres).append(lbl)
+        self.info = ctk.CTkLabel(self.corps, text="", font=police(13), text_color=DOUX, anchor="w",
+                                 justify="left", wraplength=640)
+        self.info.pack(fill="x", pady=(14, 6))
+        self.prog = ctk.CTkProgressBar(self.corps, height=8, corner_radius=4, fg_color=CHAMP, progress_color=ACCENT)
+        self.prog.set(0)
+        self.prog.pack(fill="x")
+        b = self.boutons()
+        self.btn = bouton(b, "Appliquer", self._lancer, "principal", height=42, width=140)
+        self.btn.pack(side="right")
+        bouton(b, "Fermer", self.fermer, "discret", height=42).pack(side="left")
+        self._images = []
+        self.after(100, self._apercu)
+        self.montrer()
+
+    @staticmethod
+    def _origine(f: Path) -> Path:
+        if f.stem.lower().endswith("_net"):
+            for ext in (".jpg", ".jpeg", ".JPG", ".JPEG", ".png", ".tif", ".tiff"):
+                cand = f.with_name(f.stem[:-4] + ext)
+                if cand.exists():
+                    return cand
+        return f
+
+    def _sources(self):
+        return self.sources_sel if self.var_quoi.get() == "sel" else self.sources_tout
+
+    def _apercu(self):
+        sources = self._sources()
+        if not sources:
+            self.info.configure(text="Aucune photo terminée : il faut d'abord un JPG dans 03_JPG.")
+            return
+        try:
+            with Image.open(sources[0]) as im:
+                im = ImageOps.exif_transpose(im).convert("RGB")
+                l, h = 320, 240
+                x0, y0 = max(0, (im.width - l) // 2), max(0, (im.height - h) // 2)
+                zone = im.crop((x0, y0, x0 + l, y0 + h))
+                # la netteté dépend de la taille de la photo : on l'applique sur l'image entière
+                net = noyau.accentuer(im, self.var_niveau.get()).crop((x0, y0, x0 + l, y0 + h))
+        except Exception as e:
+            self.info.configure(text=f"Aperçu impossible : {e}")
+            return
+        self._images = []
+        for lbl, img in ((self.lbl_avant[0], zone), (self.lbl_apres[0], net)):
+            ci = ctk.CTkImage(light_image=img, dark_image=img, size=img.size)
+            self._images.append(ci)
+            lbl.configure(image=ci, text="")
+        self.info.configure(text=f"{len(sources)} photo(s) · aperçu : {sources[0].name}")
+
+    def _lancer(self):
+        sources = self._sources()
+        if not sources:
+            return
+        self.btn.configure(state="disabled")
+        niveau = self.var_niveau.get()
+
+        def progression(i, n, nom):
+            self.after(0, lambda: (self.prog.set(i / n), self.info.configure(text=f"{i} / {n}   ·   {nom}")))
+
+        def travail():
+            try:
+                crees = noyau.ameliorer_nettete(sources, niveau, progression=progression)
+                self.after(0, lambda: self._fini(f"✓  {len(crees)} photo(s) plus nettes créées dans 03_JPG "
+                                                 "(fichiers « _net »). L'export web les utilise automatiquement."))
             except Exception as e:
                 self.after(0, lambda e=e: self._fini(f"Erreur : {e}"))
 

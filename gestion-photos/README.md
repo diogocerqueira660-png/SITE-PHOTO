@@ -104,7 +104,22 @@ Lightroom (l'appli détecte le TIF créé). Si tu passes par l'appli, active dan
 *Paramètres du catalogue → Métadonnées → « Inclure automatiquement les paramètres de
 développement dans le XMP »* : Photoshop ouvrira le RAW avec ton éclairage Lightroom.
 
-### 5. Export web / Instagram
+### 5. Netteté HD
+
+Menu **••• → ✨ Netteté HD** (ou clic droit sur une photo) : rend les détails plus nets
+**sans toucher aux couleurs ni à l'éclairage**. L'appli accentue seulement la luminosité
+(les détails) et applique le même gain au rouge, au vert et au bleu : la teinte et la
+saturation ne bougent pas. Aperçu avant / après à 100 %, trois intensités
+(Légère, Moyenne, Forte).
+
+Ton JPG d'origine n'est jamais modifié : une copie `…_net.jpg` est créée à côté dans
+`03_JPG`, avec le même profil couleur et les mêmes infos EXIF. L'export web utilise
+automatiquement la version nette.
+
+Tout se fait sur ton ordinateur : rien n'est envoyé sur Internet. (Une IA comme Claude
+sait regarder une photo et la décrire, mais ne renvoie pas d'image retouchée.)
+
+### 6. Export web / Instagram
 
 **↗ Export web / Insta** : depuis `03_JPG`, crée des JPG légers (2048 px, Insta 4:5, carré,
 story) avec ta signature, dans `04_WEB`.
